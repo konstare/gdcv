@@ -1,0 +1,154 @@
+#+TITLE: gdcv - GoldenDict console version and emacs module
+
+* Description
+gdcv is a command-line interface for searching [[https://github.com/goldendict/goldendict][GoldenDict]] dictionaries. The program is a very rudimentary workaround to allow searching until an official command-line interface is available.
+
+As an example of a similar interface, [[https://github.com/goldendict/goldendict][GoldenDict]] has [[https://github.com/dohliam/gdcl][gdcl]] (Command-line interface for Goldendict), but for my setup it works really slow due to no pre-made index  for faster searching. 
+
+[[http://code.google.com/p/stardict-3/][StarDict]] has [[http://sdcv.sourceforge.net/][sdcv]] (StarDict Console Version), but it can only handle dictionaries in the StarDict format. For users of GoldenDict who have large collections of dictionaries in DSL format, converting and maintaining two parallel sets of dictionaries is not a practical solution.
+
+gdcv does not require an installation of GoldenDict. It creates index file of existing dictionaries in the GoldenDict directory (which can be configured) and after that can be  used to search through the collection of dictionaries. gdcv does not use GoldenDict's pre-made index files, it creates new index based. 
+
+The main catch is that gdcv is written in C by a person who has never programmed anything before.  It seems  the program  does not leak memory, but the software architecture  is horrible.
+
+Please [[https://github.com/goldendict/goldendict/issues/37][vote]] for official  command-line interface for GoldenDict.
+
+* Features
++ Search a word in a dictionary
++ Search a word by regular expression
++ Syntax highlighting
++ Extracting media files
++ Emacs module
+
+
+* Installation
+** Requirements
+1. gcc or clang
+2. glibc>=2.30      
+3. zlib
+For Ubuntu 19.10:
+#+BEGIN_SRC sh
+sudo apt install zlib1g-dev
+#+END_SRC
+** Compilation 
+#+BEGIN_SRC sh
+git clone https://github.com/konstare/gdcv
+cd gdcv
+make gdcv
+#+END_SRC
+
+Put gdcv into a directory from the $PATH.
+
+** Configuration
+*** Convert dictionaries from UTF-16 to UTF-8
+
+Usually GoldenDict dictionaries (DSL) comes in UTF-16. It is above my pay-grade to deal with it,  all dictionaries should be converted to UTF-8. It is not the problem for GoldenDict as it supports both UTF-16 and UTF-8.
+
+
+To convert dictionaries dictzip and dos2unix are needed.
+
+In the GoldenDict directory:
+#+BEGIN_SRC sh
+find . -name '*.dsl.dz' -exec  dictunzip {} \;
+find . -name '*.dsl' -exec  dos2unix --add-bom -f {} \;
+find . -name '*.dsl' -exec  dictzip {} \;
+find . -name '*.ann' -exec  dos2unix --add-bom -f {} \;
+#+END_SRC
+
+*** Create Index
+
+#+BEGIN_SRC sh
+gdcv -i /path/to/directory/in/DSL/format
+#+END_SRC
+
+The index file will be saved in the directory:
+=$XDG_CONFIG_HOME/gdcv/= or  =$HOME/.config/gdcv/= if =XDG_CONFIG_HOME= is not defined.
+
+
+* Usage
+To look up a word "cat"
+#+BEGIN_SRC sh
+gdcv cat
+#+END_SRC
+
+[[./video/cli.gif]]
+
+To search words containing "cat"
+#+BEGIN_SRC sh
+gdcv *cat
+#+END_SRC
+
+
+Put all additional media files to directory =/tmp=
+#+BEGIN_SRC sh
+gdcv cat --unzip=/tmp/
+#+END_SRC
+
+
+* Emacs module
+For many years I have  successfully used sdcv-mode and [[http://sdcv.sourceforge.net/][sdcv]] in my work flow. Turn out all modern dictionaries are formatted in GoldenDict format (DSL). I tried to convert DSL to StarDict format with [[https://github.com/ilius/pyglossary][pyglossary]] but the result was mediocre. There is [[https://github.com/stardiviner/goldendict.el][goldendict-el]] for Emacs but I wanted something similar to sdcv-mode.
+
+** To install gdcv-mode
+**** compile and create index file.
+
+#+BEGIN_SRC sh
+make gdcv-elisp.so
+#+END_SRC
+
+**** copy gdcv-elisp.so and gdcv.el to load-path. For example:
+#+BEGIN_SRC sh
+cp gdcv-elisp.so ~/.emacs.d/site-lisp/
+cp gdcv.el ~/.emacs.d/site-lisp/
+#+END_SRC
+** Configuration
+Add to the init file
+#+BEGIN_SRC elisp
+(use-package gdcv
+  :load-path "~/.emacs.d/site-lisp"
+  :bind (("C-c d" . gdcv-search-word)))
+#+END_SRC
+
+If the index file is not saved in default directory, add:
+#+BEGIN_SRC elisp
+(setq gdcv-index-path "path/to/index/file")
+#+END_SRC
+
+To show the selected dictionary first, modify =gdcv-default-dictionary-list=
+#+BEGIN_SRC elisp
+  (setq gdcv-default-dictionary-list '("OxfordDictionary (En-En)" "Merriam-Webster's Advanced Learner's Dictionary (En-En)"))
+#+END_SRC
+
+All media files for the translated word are unpacked to =gdcv-media-temp-directory= and are played by =gdcv-play-media= function (by default it is just wrapper around xdg-open).
+
+#+BEGIN_SRC elisp
+  (setq gdcv-media-temp-directory "/tmp/gdcv/"
+	gdcv-play-media (lambda (file) 
+			  (let ((process-connection-type nil))
+			    (start-process "" nil  "xdg-open"  file))))
+#+END_SRC
+
+
+
+** Usage
+=C-c d= to translate word  (or text selection)  under the cursor.
+
+[[./video/emacs.gif]]
+
+
+The gdcv-mode goes with simple ivy interface *ivy-gdcv*, which can be used to search a word. By default, the prefix search is used, for example for "cat", one can get: "cat","catamaran", "cater"... For the suffix search one can type "*cat" and get: "cat","muscatel",...
+
+
+
+[[./video/ivy.gif]]
+
+
+* Useful links
+**** Tools for creating DSL-format dictionaries
+https://github.com/dohliam/dsl-tools
+**** Command-line interface for Goldendict dictionaries written in ruby
+https://github.com/dohliam/gdcl
+**** Lingvo dictionaries decompiler
+https://github.com/nongeneric/lsd2dsl
+**** A tool for converting dictionary files aka glossaries with various formats for different dictionary applications
+https://github.com/ilius/pyglossary
+

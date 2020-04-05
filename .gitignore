@@ -1,0 +1,8 @@
+/.ccls-cache/
+/gdcv
+/gdcv.org
+*.so
+/index
+/gdcv_debug
+/gmon.out
+/analysis.txt
