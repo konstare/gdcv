@@ -1,3 +1,104 @@
+/* We use radix tree to build index file.
+ * The implementation  is based on the one of libkmod (interface to kernel module operations )
+ * (https://git.kernel.org/pub/scm/utils/kernel/kmod/kmod.git)
+ *
+ *
+ * Few bugs are introduced.
+ * First, all dictionary files with *dsl.dz extension are found in the given directories.
+ * These files are read with gzread line by line, all words are going through Unicode normalization (utf8proc library is used).
+ * The index file is saved.
+ *
+ * Disk format:
+ *
+ *  uint32_t magic = INDEX_MAGIC;
+ *  uint32_t version = INDEX_VERSION;
+ *
+ *
+ *  List of dictionaries:
+ *
+ *  uint32_t dictionary_id;
+ *  char* basename;//null terminated
+ *  char*  filename, abbreviation_file,icon,zip_file_with_resources,name,translation_from,translation_to; //null terminated
+ *
+ *
+ *  uint32_t root_offset;
+ *
+ *  (node_offset & INDEX_NODE_MASK) specifies the file offset of nodes:
+ *
+ *       char[] prefix; // nul terminated
+ *       
+ *       unsigned char N; //number of childrens
+ *       char children[N];
+ *       uint32_t children[N];
+ *
+ *       unsigned char v_N; //number of values.
+ *       char* words; // nul terminated /// all words are grouped by their unicode normalisation form, so: dog,DOG, Dög are in one group. 
+ *       To save space,  if a word is equal to the key then it is skipped.
+ *       char* values; // nul terminated  
+ *
+ *        values are in format dictionary_id:start_offset:end_offset: 
+ *        start_offset and end_offset are positions of the word translation in dictionary file.
+ *        values are compressed.
+ *
+ *
+ *
+ *  (node_offset & INDEX_NODE_FLAGS) indicates which fields are present.
+ *  Empty prefixes are omitted, leaf nodes omit the three child-related fields.
+ *
+ * Implementation is based on a radix tree, or "trie".
+ * Each arc from parent to child is labelled with a character.
+ * Each path from the root represents a string.
+ *
+ * == Example strings ==
+ *
+ * ask
+ * ate
+ * on
+ * once
+ * one
+ *
+ * == Key ==
+ *  + Normal node
+ *  * Marked node, representing a key and it's values.
+ *
+ * +
+ * |-a-+-s-+-k-*
+ * |   |
+ * |   `-t-+-e-*
+ * |
+ * `-o-+-n-*-c-+-e-*
+ *         |
+ *         `-e-*
+ *
+ * Naive implementations tend to be very space inefficient; child pointers
+ * are stored in arrays indexed by character, but most child pointers are null.
+ *
+ * Our implementation uses a scheme described by Wikipedia as a Patrica trie,
+ *
+ *     "easiest to understand as a space-optimized trie where
+ *      each node with only one child is merged with its child"
+ *
+ * +
+ * |-a-+-sk-*
+ * |   |
+ * |   `-te-*
+ * |
+ * `-on-*-ce-*
+ *      |
+ *      `-e-*
+ *
+ * We still use arrays of child pointers indexed by a single character;
+ * the remaining characters of the label are stored as a "prefix" in the child.
+ *
+ * The paper describing the original Patrica trie works on individiual bits -
+ * each node has a maximum of two children, which increases space efficiency.
+ * However for this application it is simpler to use the ASCII character set.
+ * Since the index file is read-only, it can be compressed by omitting null
+ * child pointers at the start and end of arrays.
+ */
+
+/* Format of node offsets within index file */
+
 #ifndef _INDEX_H
 #define _INDEX_H
 

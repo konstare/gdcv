@@ -137,7 +137,7 @@ int index_insert(struct index_node *node, const char *key, const char *value,con
 				struct index_node *n;
 				
 				/* New child is copy of node with prefix[j+1..N] */
-				n = xcalloc(sizeof(struct index_node), 1);
+				n = xcalloc(1,sizeof(struct index_node));
 				memcpy(n, node, sizeof(struct index_node));
 				n->prefix = xstrdup(&prefix[j+1]);
 				
@@ -499,42 +499,7 @@ extern struct root_ index_directories (char **dir_list)
 
 
 
-static inline void index_save_and_compress_values(const struct index_node *node, FILE *out)
-{
 
-  unsigned char i;
-  unsigned char N=node->v_N;
-  for(i=0; i <N;i++)
-    if(!strcmp(node->values[i].word,""))
-      {
-	struct index_value temp=node->values[i];
-	node->values[i]=node->values[0];
-	node->values[0]=temp;
-	break;
-      }
-
-  fputc(N, out);
-
-  int outlen;
-  
-  for(i=0;i<N;i++){
-    fputs(node->values[i].word, out);
-    fputc('\0', out);
-  }
-    for(i=0;i<N;i++){
-
-      outlen = strlen(node->values[i].value)/2;
-
-      for( int j=0; j<outlen; j++)
-	node->values[i].value[j]=(node->values[i].value[2*j]-'0')*11+(node->values[i].value[2*j+1]-'0') +COMPRESS_SHIFT;
-      
-      node->values[i].value[outlen]='\0';
-
-      fputs(node->values[i].value, out);
-      fputc('\0', out);
-  }
-
-}
 
   
 /* Recursive post-order traversal
@@ -548,7 +513,9 @@ static uint32_t index_write__node(const struct index_node *node, FILE *out)
 {
   long offset;
   uint32_t *child_offs = NULL;
-  
+  unsigned char c_N=node->c_N;
+  unsigned char v_N=node->v_N;
+  int i=0;
 
   if (!node)
     return 0;
@@ -558,11 +525,9 @@ static uint32_t index_write__node(const struct index_node *node, FILE *out)
   
   if (node->childrens)
     {
-      unsigned char c_N=node->c_N;
       qsort(node->childrens, c_N, sizeof(struct childrens), comp_ch);
 
       const struct index_node *child;
-      int i;
       child_offs = xmalloc(c_N * sizeof(uint32_t));
       
       for (i = 0; i < c_N; i++)
@@ -572,7 +537,6 @@ static uint32_t index_write__node(const struct index_node *node, FILE *out)
 	}
     }
       
-
 		
 	/* Now write this node */
 	offset = ftell(out);
@@ -585,9 +549,9 @@ static uint32_t index_write__node(const struct index_node *node, FILE *out)
 		
 	if (node->childrens)
 	  {
-	    fputc(node->c_N, out);
+	    fputc(c_N, out);
 
-	    for(int i=0; i<node->c_N;i++)
+	    for(i=0; i<c_N;i++)
 	      {
 		fputc(node->childrens[i].ch, out);
 		fwrite(&child_offs[i], sizeof(uint32_t), 1, out);
@@ -598,7 +562,39 @@ static uint32_t index_write__node(const struct index_node *node, FILE *out)
 	}
 	
 	if (node->values) {
-	  index_save_and_compress_values(node, out);
+
+	  for( i=0; i <v_N;i++)
+	    if(!strcmp(node->values[i].word,""))
+	      {
+		struct index_value temp=node->values[i];
+		node->values[i]=node->values[0];
+		node->values[0]=temp;
+		break;
+	      }
+	  
+	  fputc(v_N, out);
+	  
+	  int outlen;
+	  
+	  for(i=0;i<v_N;i++){
+	    fputs(node->values[i].word, out);
+	    fputc('\0', out);
+	  }
+
+	  for(i=0;i<v_N;i++){
+	    
+	    outlen = strlen(node->values[i].value)/2;
+	    
+	    for( int j=0; j<outlen; j++)
+	      node->values[i].value[j]=(node->values[i].value[2*j]-'0')*11+(node->values[i].value[2*j+1]-'0') +COMPRESS_SHIFT;
+	    
+	    node->values[i].value[outlen]='\0';
+	    
+	    fputs(node->values[i].value, out);
+	    fputc('\0', out);
+	  }
+	  
+	  
 	  offset |= INDEX_NODE_VALUES;
 	}
 	
@@ -672,11 +668,12 @@ extern void index_write(const struct index_node *node, struct root_ D, FILE *out
 extern struct index_node *index_create(struct root_ D)
 {
 	struct index_node *node;
-	node = xcalloc(sizeof(struct index_node), 1);
+	node = xcalloc(1,sizeof(struct index_node));
 	node->prefix = xstrdup("");
 	node->childrens=NULL;
 	node->values=NULL;
 	node->c_N=0;
+	node->v_N=0;
 	  
 	printf("\n\t");
 	for (int i = 0; i < 50; i ++) putchar('=');
@@ -703,7 +700,7 @@ extern struct index_node *index_create(struct root_ D)
 static const char _idx_empty_str[] = "";
 
 
-struct kid_mm {
+struct children_mm {
   char ch;		/* path compression */
   uint32_t offset; /* indexed by character */
 };
@@ -713,8 +710,8 @@ struct index_mm_node {
   const char *prefix;
   const int prefix_len;
   unsigned char v_N;
-  unsigned char N;
-  struct kid_mm  *kids;
+  unsigned char c_N;
+  struct children_mm  *children;
   struct index_value  *coded_value;
 };
 
@@ -772,9 +769,9 @@ static struct index_mm_node *index_mm_read_node(struct index_mm *idx, uint32_t o
   struct index_mm_node *node;
   const  char *prefix;
   
-  struct kid_mm kids[UCHAR_MAX];
+  struct children_mm kids[UCHAR_MAX];
   struct index_value coded_value[UCHAR_MAX];
-  unsigned char  N=0;
+  unsigned char  c_N=0;
   unsigned char  v_N=0;
 
   int i;
@@ -793,8 +790,8 @@ static struct index_mm_node *index_mm_read_node(struct index_mm *idx, uint32_t o
     prefix =  _idx_empty_str;
 
   if (offset & INDEX_NODE_CHILDS) {
-    N = read_char_mm(&p);
-    for(i=0;i<N;i++)
+    c_N = read_char_mm(&p);
+    for(i=0;i<c_N;i++)
       {
 	kids[i].ch = read_char_mm(&p);
 	kids[i].offset = read_long_mm(&p);
@@ -812,21 +809,21 @@ static struct index_mm_node *index_mm_read_node(struct index_mm *idx, uint32_t o
 
 
 	    
-  node = xmalloc(sizeof(struct index_mm_node)+N*sizeof(struct kid_mm)+v_N*sizeof(struct index_value));
+  node = xmalloc(sizeof(struct index_mm_node)+c_N*sizeof(struct children_mm)+v_N*sizeof(struct index_value));
 
   node->idx = idx;
   node->prefix = prefix;
   
-  node->N=N;
+  node->c_N=c_N;
   node->v_N=v_N;
 
-  node->kids=(struct kid_mm *)((char *)node +  sizeof(struct index_mm_node));
-  node->coded_value=(struct index_value *)((char *)node +  sizeof(struct index_mm_node) + N*sizeof(struct kid_mm) );
+  node->children=(struct children_mm *)((char *)node +  sizeof(struct index_mm_node));
+  node->coded_value=(struct index_value *)((char *)node +  sizeof(struct index_mm_node) + c_N*sizeof(struct children_mm) );
   
-  if(N)
-    memcpy(node->kids, kids, N*sizeof(struct kid_mm));
+  if(c_N)
+    memcpy(node->children, kids, c_N*sizeof(struct children_mm));
   else
-    node->kids=NULL;
+    node->children=NULL;
     
   if(v_N)
     memcpy(node->coded_value, coded_value, v_N*sizeof(struct index_value));
@@ -937,7 +934,7 @@ static struct index_mm_node *index_mm_readroot(struct index_mm *idx)
 static struct index_mm_node *index_mm_readchild(const struct index_mm_node *parent,
 									int ch)
 {
-  struct kid_mm *current =bsearch(&ch, parent->kids,parent->N, sizeof(struct kid_mm), comp_ch);
+  struct children_mm *current =bsearch(&ch, parent->children,parent->c_N, sizeof(struct children_mm), comp_ch);
   if(current)
     return index_mm_read_node(parent->idx, current->offset);
   
@@ -1158,12 +1155,12 @@ static void index_mm_search_all(struct search_results *sr,struct index_mm_node *
       struct index_mm_node *child;
       struct search_results child_result;
       
-      for(int i=0;   i<node->N;i++)
+      for(int i=0;   i<node->c_N;i++)
 	{
-	  child = index_mm_read_node(node->idx, node->kids[i].offset); // redefine node from parent to child
+	  child = index_mm_read_node(node->idx, node->children[i].offset); // redefine node from parent to child
 
 	  child_result=*sr;
-	  child_result.buf.str[child_result.buf.len++]=node->kids[i].ch;
+	  child_result.buf.str[child_result.buf.len++]=node->children[i].ch;
 
 	  index_mm_search_all(&child_result,child,key);
 	}

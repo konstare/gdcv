@@ -120,7 +120,7 @@ int main(int argc, char *argv[])
     }
 
 
-  xasprintf(&FileDB, "%s/index.db", index_path);
+  xasprintf(&FileDB, "%s/index_preorder.db", index_path);
 
   
   mkdir(index_path, 0755); 
