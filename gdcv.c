@@ -15,8 +15,7 @@ const char *argp_program_bug_address =  "<somewhere>";
 static char doc[] = "Command Line version of GoldenDict"
   "\noptions:"
   "\vTo look up a word \"cat\": gdcv cat.\n"
-  "To look up a word with a hyphen delimiter \"-a\": gdcv -- -a\n"
-  "To search words containing \"*cat*\": gdcv -s cat\n"
+  "To search words with substring \"cat\": gdcv *cat\n"
   "To index directory: gdcv -i /usr/share/dict";
 
 /* A description of the arguments we accept. */
@@ -106,8 +105,6 @@ int main(int argc, char *argv[])
   argp_parse (&argp, argc, argv, 0, 0, &arguments);
 
   char *index_path=NULL;
-  char *FileDB=NULL;
-
   
   if (getenv("XDG_CONFIG_HOME") != NULL) 
     xasprintf(&index_path, "%s/gdcv", getenv("XDG_CONFIG_HOME"));
@@ -120,11 +117,9 @@ int main(int argc, char *argv[])
     }
 
 
-  xasprintf(&FileDB, "%s/index.db", index_path);
-
-  
+ 
   mkdir(index_path, 0755); 
-  free(index_path);
+   
 
 
   if(arguments.to_index)
@@ -173,20 +168,16 @@ int main(int argc, char *argv[])
       struct index_node *index;
       index = index_create(D);
 
-      FILE *cfile;
-      cfile = fopen(FileDB, "w");
-      index_write(index, D, cfile);
+      index_write(index, D, index_path);
       index_destroy(index);
       root_destroy(D);
-      fclose(cfile);
     }
   else{
-    struct stat stat_buffer;
     struct index_mm *index;
-    index=index_mm_open(FileDB,&stat_buffer);
+    index=index_mm_open(index_path);
     if(!index)
       {
-	printf("The index file does not exist or cannot be read\nPlease use gdcv -i 'Path to dictionaries in GoldenDict format'");
+	printf("The index files do not exist or cannot be read\nPlease use gdcv -i 'Path to dictionaries in GoldenDict format'");
 	exit(EXIT_FAILURE);  
       }
 
@@ -256,7 +247,7 @@ int main(int argc, char *argv[])
   
 
 
-  free(FileDB);
+  free(index_path);
   exit(EXIT_SUCCESS);
 }
 

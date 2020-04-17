@@ -63,19 +63,19 @@ open_database(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
     (void)ptr;
     (void)n;
 
-    char *FileDB = 0;
-    if (extract_string_arg(env, args[0], &FileDB)) {
+    char *index_path = 0;
+    
+    if (extract_string_arg(env, args[0], &index_path)) {
       return SYM(env, "nil");
     }
-    
-    struct stat stat_buffer;
+
     struct index_mm *index;
-    index=index_mm_open(FileDB,&stat_buffer);
+    index=index_mm_open(index_path);
 
     if(!index)
       {
 	emacs_value signal = env->intern(env, "no index");
-	emacs_value message = env->make_string(env, FileDB, strlen(FileDB));
+	emacs_value message = env->make_string(env, index_path, strlen(index_path));
 	env->non_local_exit_signal(env, signal, message);
 	return SYM(env, "nil");
       }

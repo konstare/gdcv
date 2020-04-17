@@ -3,7 +3,7 @@ CC=gcc
 CFLAGS=$(pkg-config --cflags  zlib) -Wall  -Wextra  -pedantic
 OPTIMISATIONS= -O2  -march=native
 LDLIBS=$(shell pkg-config --libs  zlib)
-DEBUG=-fsanitize=address -fno-omit-frame-pointer -ggdb -static-libasan 
+DEBUG=-fsanitize=address -O0 -g3 -ggdb -static-libasan 
 
 .PHONY : test
 

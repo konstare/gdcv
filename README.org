@@ -61,7 +61,7 @@ find . -name '*.ann' -exec  dos2unix --add-bom -f {} \;
 gdcv -i /path/to/directory/in/DSL/format
 #+END_SRC
 
-The index file will be saved in the directory:
+Two index files will be saved in the directory:
 =$XDG_CONFIG_HOME/gdcv/= or  =$HOME/.config/gdcv/= if =XDG_CONFIG_HOME= is not defined.
 
 
@@ -89,10 +89,11 @@ gdcv cat --unzip=/tmp/
 For many years I have  successfully used sdcv-mode and [[http://sdcv.sourceforge.net/][sdcv]] in my work flow. Turn out all modern dictionaries are formatted in GoldenDict format (DSL). I tried to convert DSL to StarDict format with [[https://github.com/ilius/pyglossary][pyglossary]] but the result was mediocre. There is [[https://github.com/stardiviner/goldendict.el][goldendict-el]] for Emacs but I wanted something similar to sdcv-mode.
 
 ** To install gdcv-mode
-**** compile and create index file.
+**** compile and create index files.
 
 #+BEGIN_SRC sh
 make gdcv-elisp.so
+gdcv -i /path/to/directory/in/DSL/format
 #+END_SRC
 
 **** copy gdcv-elisp.so and gdcv.el to load-path. For example:
@@ -135,7 +136,7 @@ All media files for the translated word are unpacked to =gdcv-media-temp-directo
 [[./video/emacs.gif]]
 
 
-The gdcv-mode goes with simple ivy interface *ivy-gdcv*, which can be used to search a word. By default, the prefix search is used, for example for "cat", one can get: "cat","catamaran", "cater"... For the suffix search one can type "*cat" and get: "cat","muscatel",...
+The gdcv-mode goes with simple ivy interface *ivy-gdcv*, which can be used to search a word. By default, the prefix search is used, for example for "cat", one can get: "cat","catamaran", "cater"... For the substring search one can type "*cat" and get: "cat","muscatel",...
 
 
 

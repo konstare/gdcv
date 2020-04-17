@@ -271,9 +271,11 @@ static int dict_read_header( const char *filename,
    unsigned long offset;
 
    if (!(str = fopen( filename, "rb" )))
-      err_fatal_errno( __func__,
-		       "Cannot open data file \"%s\" for read\n", filename );
-
+     {
+       printf("Cannot open data file \"%s\" for read\n", filename );
+       return 12;
+     }
+   
    header->filename     = NULL;//str_find( filename );
    header->headerLength = GZ_XLEN - 1;
    header->type         = DICT_UNKNOWN;
@@ -452,6 +454,186 @@ static int dict_read_header( const char *filename,
    fclose( str );
    return 0;
 }
+
+
+static void xfwrite(
+   const void *ptr, size_t size, size_t nmemb,
+   FILE * stream)
+{
+   size_t ret = fwrite(ptr, size, nmemb, stream);
+   if (ret < nmemb){
+      perror("fwrite(3) failed");
+      exit ( 1 );
+   }
+}
+
+static void xfclose(FILE *stream)
+{
+   if (fclose(stream) != 0){
+      perror("fclose(3) failed");
+      exit ( 1 );
+   }
+}
+
+
+int dict_data_zip( FILE *inStr, const char *outFilename)
+{
+   char          inBuffer[IN_BUFFER_SIZE];
+   char          outBuffer[OUT_BUFFER_SIZE];
+   int           count;
+   unsigned long inputCRC = crc32( 0L, Z_NULL, 0 );
+   z_stream      zStream;
+   FILE          *outStr;
+   int           len;
+   struct stat   st;
+   char          *header;
+   int           headerLength;
+   int           dataLength;
+   int           extraLength;
+   int           chunkLength;
+   unsigned long chunks;
+   unsigned long chunk = 0;
+   unsigned long total = 0;
+   int           i;
+   char          tail[8];
+   char origFilename[]="gdcv_index_values";
+   
+   /* Open files */
+
+   if (!(outStr = fopen( outFilename, "w" )))
+      err_fatal_errno( __func__,
+		       "Cannot open \"%s\"for write\n", outFilename );
+
+
+   /* Initialize compression engine */
+   zStream.zalloc    = NULL;
+   zStream.zfree     = NULL;
+   zStream.opaque    = NULL;
+   zStream.next_in   = NULL;
+   zStream.avail_in  = 0;
+   zStream.next_out  = NULL;
+   zStream.avail_out = 0;
+   if (deflateInit2( &zStream,
+		     Z_BEST_COMPRESSION,
+		     Z_DEFLATED,
+		     -15,	/* Suppress zlib header */
+		     Z_BEST_COMPRESSION,
+		     Z_DEFAULT_STRATEGY ) != Z_OK)
+      err_internal( __func__,
+		    "Cannot initialize deflation engine: %s\n", zStream.msg );
+
+   /* Write initial header information */
+   chunkLength = IN_BUFFER_SIZE;
+   fstat( fileno( inStr ), &st );
+   chunks = st.st_size / chunkLength;
+   if (st.st_size % chunkLength) ++chunks;
+   PRINTF(DBG_VERBOSE,("%lu chunks * %u per chunk = %lu (filesize = %lu)\n",
+			chunks, chunkLength, chunks * chunkLength,
+			(unsigned long) st.st_size ));
+   dataLength   = chunks * 2;
+   extraLength  = 10 + dataLength;
+   headerLength = GZ_FEXTRA_START
+     + extraLength		/* FEXTRA */
+     + strlen( origFilename ) + 1;	/* FNAME  */
+   PRINTF(DBG_VERBOSE,("(data = %d, extra = %d, header = %d)\n",
+		       dataLength, extraLength, headerLength ));
+   header = xmalloc( headerLength );
+   for (i = 0; i < headerLength; i++) header[i] = 0;
+   header[GZ_ID1]        = GZ_MAGIC1;
+   header[GZ_ID2]        = (char)GZ_MAGIC2;
+   header[GZ_CM]         = Z_DEFLATED;
+   header[GZ_FLG]        = GZ_FEXTRA | GZ_FNAME;
+   header[GZ_MTIME+3]    = (st.st_mtime & 0xff000000) >> 24;
+   header[GZ_MTIME+2]    = (st.st_mtime & 0x00ff0000) >> 16;
+   header[GZ_MTIME+1]    = (st.st_mtime & 0x0000ff00) >>  8;
+   header[GZ_MTIME+0]    = (st.st_mtime & 0x000000ff) >>  0;
+   header[GZ_XFL]        = GZ_MAX;
+   header[GZ_OS]         = GZ_OS_UNIX;
+   header[GZ_XLEN+1]     = (extraLength & 0xff00) >> 8;
+   header[GZ_XLEN+0]     = (extraLength & 0x00ff) >> 0;
+   header[GZ_SI1]        = GZ_RND_S1;
+   header[GZ_SI2]        = GZ_RND_S2;
+   header[GZ_SUBLEN+1]   = ((extraLength - 4) & 0xff00) >> 8;
+   header[GZ_SUBLEN+0]   = ((extraLength - 4) & 0x00ff) >> 0;
+   header[GZ_VERSION+1]  = 0;
+   header[GZ_VERSION+0]  = 1;
+   header[GZ_CHUNKLEN+1] = (chunkLength & 0xff00) >> 8;
+   header[GZ_CHUNKLEN+0] = (chunkLength & 0x00ff) >> 0;
+   header[GZ_CHUNKCNT+1] = (chunks & 0xff00) >> 8;
+   header[GZ_CHUNKCNT+0] = (chunks & 0x00ff) >> 0;
+   strcpy( &header[GZ_FEXTRA_START + extraLength], origFilename );
+   xfwrite( header, 1, headerLength, outStr );
+    
+   /* Read, compress, write */
+   while (!feof( inStr )) {
+      if ((count = fread( inBuffer, 1, chunkLength, inStr ))) {
+	 dict_data_filter( inBuffer, &count, IN_BUFFER_SIZE, preFilter );
+
+	 inputCRC = crc32( inputCRC, (const Bytef *) inBuffer, count );
+	 zStream.next_in   = (Bytef *) inBuffer;
+	 zStream.avail_in  = count;
+	 zStream.next_out  = (Bytef *) outBuffer;
+	 zStream.avail_out = OUT_BUFFER_SIZE;
+	 if (deflate( &zStream, Z_FULL_FLUSH ) != Z_OK)
+	    err_fatal( __func__, "deflate: %s\n", zStream.msg );
+	 assert( zStream.avail_in == 0 );
+	 len = OUT_BUFFER_SIZE - zStream.avail_out;
+	 assert( len <= 0xffff );
+
+	 dict_data_filter( outBuffer, &len, OUT_BUFFER_SIZE, postFilter );
+	 
+	 assert( len <= 0xffff );
+	 header[GZ_RNDDATA + chunk*2 + 1] = (len & 0xff00) >>  8;
+	 header[GZ_RNDDATA + chunk*2 + 0] = (len & 0x00ff) >>  0;
+	 xfwrite( outBuffer, 1, len, outStr );
+
+	 ++chunk;
+	 total += count;
+	 
+      }
+   }
+   PRINTF(DBG_VERBOSE,("total: %lu chunks, %lu bytes\n", chunks, (unsigned long) st.st_size));
+    
+   /* Write last bit */
+   zStream.next_in   = (Bytef *) inBuffer;
+   zStream.avail_in  = 0;
+   zStream.next_out  = (Bytef *) outBuffer;
+   zStream.avail_out = OUT_BUFFER_SIZE;
+   if (deflate( &zStream, Z_FINISH ) != Z_STREAM_END)
+      err_fatal( __func__, "deflate: %s\n", zStream.msg );
+   assert( zStream.avail_in == 0 );
+   len = OUT_BUFFER_SIZE - zStream.avail_out;
+   xfwrite( outBuffer, 1, len, outStr );
+   PRINTF(DBG_VERBOSE,("(wrote %d bytes, final, crc = %lx)\n",
+		       len, inputCRC ));
+
+   /* Write CRC and length */
+   tail[0 + 3] = (inputCRC & 0xff000000) >> 24;
+   tail[0 + 2] = (inputCRC & 0x00ff0000) >> 16;
+   tail[0 + 1] = (inputCRC & 0x0000ff00) >>  8;
+   tail[0 + 0] = (inputCRC & 0x000000ff) >>  0;
+   tail[4 + 3] = (st.st_size & 0xff000000) >> 24;
+   tail[4 + 2] = (st.st_size & 0x00ff0000) >> 16;
+   tail[4 + 1] = (st.st_size & 0x0000ff00) >>  8;
+   tail[4 + 0] = (st.st_size & 0x000000ff) >>  0;
+   xfwrite( tail, 1, 8, outStr );
+
+   /* Write final header information */
+   rewind( outStr );
+   xfwrite( header, 1, headerLength, outStr );
+
+   /* Close files */
+   xfclose( outStr );
+    
+   /* Shut down compression */
+   if (deflateEnd( &zStream ) != Z_OK)
+      err_fatal( __func__, "defalteEnd: %s\n", zStream.msg );
+
+   xfree( header );
+
+   return 0;
+}
+
 
 dictData *dict_data_open( const char *filename, int computeCRC )
 {

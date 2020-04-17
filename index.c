@@ -13,7 +13,6 @@
 
 #include "utfproc/utf8proc.h" 
 
-
 #include "index.h"
 
 
@@ -48,12 +47,7 @@ void index_destroy(struct index_node *node)
     
   free(node->childrens);
   
-  for(int i=0;i<node->v_N;i++)
-      {
-	free(node->values[i].word);
-	free(node->values[i].value);
-      }
-  free(node->values);
+
   if(node->key)
     free(node->key);
   free(node->prefix);
@@ -509,12 +503,13 @@ extern struct root_ index_directories (char **dir_list)
    However, index reading is already fast enough.
    Pre-order is simpler for writing, and depmod is already slow.
  */
-static uint32_t index_write__node(const struct index_node *node, FILE *out)
+static uint32_t index_write__node(const struct index_node *node, FILE *out, FILE * value_out)
 {
   long offset;
   uint32_t *child_offs = NULL;
   unsigned char c_N=node->c_N;
   unsigned char v_N=node->v_N;
+
   int i=0;
 
   if (!node)
@@ -533,7 +528,7 @@ static uint32_t index_write__node(const struct index_node *node, FILE *out)
       for (i = 0; i < c_N; i++)
 	{
 	  child = node->childrens[i].node;
-	  child_offs[i] = htonl(index_write__node(child, out));
+	  child_offs[i] = htonl(index_write__node(child, out,value_out));
 	}
     }
       
@@ -563,6 +558,8 @@ static uint32_t index_write__node(const struct index_node *node, FILE *out)
 	
 	if (node->values) {
 
+	  fputc(v_N, out);
+	  
 	  for( i=0; i <v_N;i++)
 	    if(!strcmp(node->values[i].word,""))
 	      {
@@ -572,29 +569,36 @@ static uint32_t index_write__node(const struct index_node *node, FILE *out)
 		break;
 	      }
 	  
-	  fputc(v_N, out);
-	  
-	  int outlen;
+	  long start_v;
+	  long end_v;
+
+	  start_v=htonl(ftell(value_out));
 	  
 	  for(i=0;i<v_N;i++){
-	    fputs(node->values[i].word, out);
-	    fputc('\0', out);
+	    fputs(node->values[i].word, value_out);
+	    fputc('\0', value_out);
 	  }
 
 	  for(i=0;i<v_N;i++){
-	    
-	    outlen = strlen(node->values[i].value)/2;
-	    
-	    for( int j=0; j<outlen; j++)
-	      node->values[i].value[j]=(node->values[i].value[2*j]-'0')*11+(node->values[i].value[2*j+1]-'0') +COMPRESS_SHIFT;
-	    
-	    node->values[i].value[outlen]='\0';
-	    
-	    fputs(node->values[i].value, out);
-	    fputc('\0', out);
+	    fputs(node->values[i].value, value_out);
+	    fputc('\0', value_out);
 	  }
+
+	  end_v=htonl(ftell(value_out));
+
+	  fwrite((const void*)&start_v, sizeof(uint32_t), 1, out);
+	  fwrite((const void*)&end_v, sizeof(uint32_t), 1, out);
+
+
 	  
-	  
+	  for(int i=0;i<node->v_N;i++)
+	    {
+	      free(node->values[i].word);
+	      free(node->values[i].value);
+	    }
+	  free(node->values);
+
+
 	  offset |= INDEX_NODE_VALUES;
 	}
 	
@@ -623,7 +627,7 @@ void dictionaries_write(struct dictionary D,FILE *out) {
   }
 }
 
-extern void index_write(const struct index_node *node, struct root_ D, FILE *out)
+extern void index_write(const struct index_node *node, struct root_ D, char *index_path)
 {
 
   printf("\n\t");
@@ -632,6 +636,12 @@ extern void index_write(const struct index_node *node, struct root_ D, FILE *out
   for (int i = 0; i < 58; i ++) putchar('=');
   printf("\n\n");
 
+  char *keyDB, *valueDB;
+  xasprintf(&keyDB, "%s/index_key.db", index_path);
+  xasprintf(&valueDB, "%s/index_value.db", index_path);
+
+  FILE *out=fopen(keyDB, "w");
+  FILE *value_out=tmpfile();
   
 	long initial_offset, final_offset;
 	uint32_t u;
@@ -655,13 +665,22 @@ extern void index_write(const struct index_node *node, struct root_ D, FILE *out
 	fwrite(&u, sizeof(uint32_t), 1, out);
 	
 	/* Dump trie */
-	u = htonl(index_write__node(node, out));
+	u = htonl(index_write__node(node, out,value_out));
 	
 	/* Update first word */
 	final_offset = ftell(out);
 	fseek(out, initial_offset, SEEK_SET);
 	fwrite(&u, sizeof(uint32_t), 1, out);
 	fseek(out, final_offset, SEEK_SET);
+
+	rewind(value_out);
+	dict_data_zip( value_out, valueDB);
+
+	fclose(value_out);
+	fclose(out);
+	free(keyDB);
+	free(valueDB);
+	
 }
 
 
@@ -712,7 +731,8 @@ struct index_mm_node {
   unsigned char v_N;
   unsigned char c_N;
   struct children_mm  *children;
-  struct index_value  *coded_value;
+  long start_v;
+  long end_v;
 };
 
 
@@ -770,10 +790,10 @@ static struct index_mm_node *index_mm_read_node(struct index_mm *idx, uint32_t o
   const  char *prefix;
   
   struct children_mm kids[UCHAR_MAX];
-  struct index_value coded_value[UCHAR_MAX];
   unsigned char  c_N=0;
   unsigned char  v_N=0;
-
+  long start_v=0;
+  long end_v=0;
   int i;
 
 
@@ -801,15 +821,13 @@ static struct index_mm_node *index_mm_read_node(struct index_mm *idx, uint32_t o
   
   if (offset & INDEX_NODE_VALUES) {
     v_N=read_char_mm(&p);
-    for(i=0;i<v_N;i++)
-      coded_value[i].word = read_chars_mm(&p);
-    for(i=0;i<v_N;i++)
-      coded_value[i].value =  read_chars_mm(&p);
+    start_v = read_long_mm(&p);
+    end_v = read_long_mm(&p);
   }
 
 
 	    
-  node = xmalloc(sizeof(struct index_mm_node)+c_N*sizeof(struct children_mm)+v_N*sizeof(struct index_value));
+  node = xmalloc(sizeof(struct index_mm_node)+c_N*sizeof(struct children_mm));
 
   node->idx = idx;
   node->prefix = prefix;
@@ -817,24 +835,22 @@ static struct index_mm_node *index_mm_read_node(struct index_mm *idx, uint32_t o
   node->c_N=c_N;
   node->v_N=v_N;
 
+  node->start_v=start_v;
+  node->end_v=end_v;
+  
   node->children=(struct children_mm *)((char *)node +  sizeof(struct index_mm_node));
-  node->coded_value=(struct index_value *)((char *)node +  sizeof(struct index_mm_node) + c_N*sizeof(struct children_mm) );
   
   if(c_N)
     memcpy(node->children, kids, c_N*sizeof(struct children_mm));
   else
     node->children=NULL;
     
-  if(v_N)
-    memcpy(node->coded_value, coded_value, v_N*sizeof(struct index_value));
-  else
-    node->coded_value=NULL;
   return node;
 }
 
 
 
-extern struct index_mm *index_mm_open( const char *filename, struct stat *stamp)
+extern struct index_mm *index_mm_open(char *index_path)
 {
 	int fd;
 	struct stat st;
@@ -848,8 +864,20 @@ extern struct index_mm *index_mm_open( const char *filename, struct stat *stamp)
 	} hdr;
 	void *p;
 
+
+	char *filename,*value_file;
+	char *indx=realpath(index_path, NULL);
+	xasprintf(&filename, "%s/index_key.db",indx );
+	xasprintf(&value_file, "%s/index_value.db", indx);
+	free(indx);
+	
 	idx = xmalloc(sizeof(struct index_mm));
 
+	
+	idx->dz = dict_data_open(value_file, 0 );
+	if(!idx->dz)
+	  goto fail_open;
+	
 	if ((fd = open(filename, O_RDONLY|O_CLOEXEC)) < 0) {
 		goto fail_open;
 	}
@@ -907,8 +935,6 @@ extern struct index_mm *index_mm_open( const char *filename, struct stat *stamp)
 	
 	close(fd);
 
-	*stamp = st;
-
 	return idx;
 
 fail:
@@ -923,6 +949,7 @@ fail_open:
 
 extern void index_mm_close(struct index_mm *idx)
 {
+  dict_data_close( idx->dz );
   free(idx->Dic);
   munmap(idx->mm, idx->size);
   free(idx);
@@ -942,23 +969,50 @@ static struct index_mm_node *index_mm_readchild(const struct index_mm_node *pare
 }
 
 
-static inline void Decompress(const char *in,size_t inlen, char *out)
+
+struct value_mm{
+  char N;
+  long start;
+  long end;
+  char **words;
+  char **defs;
+  char *value;
+};
+
+static  struct value_mm fetch_value(struct index_mm_node *node, const char *key)
 {
-  for(size_t i=0; i<inlen; i++){
-    out[2*i]=(in[i]-COMPRESS_SHIFT)/11+'0';
-    out[2*i+1]=(in[i]-COMPRESS_SHIFT)%11+'0';
-  }
-  if(out[2*inlen-1]!=':'){
-    out[2*inlen]=':';
-    out[2*inlen+1]='\0';
-  }else
-    out[2*inlen]='\0';
+  struct value_mm values={0,0,0,NULL,NULL,NULL};
+
+  if(!node->v_N)
+    return values;
+
+  values.value=dict_data_read_(node->idx->dz,node->start_v ,node->end_v-node->start_v-1 , NULL,NULL );
+  values.N=node->v_N;
+  
+  values.words=xmalloc(sizeof(char*)*values.N);
+  values.defs=xmalloc(sizeof(char*)*values.N);
+  
+  char *ptr=values.value;
+  for(int j=0;j<values.N;j++,ptr++)
+    {
+      values.words[j] = *ptr ? ptr: (char *)key;
+      ptr+=strlen(ptr);
+    } 
+  
+  for(int j=0;j<values.N;j++,ptr++)
+    {
+      values.defs[j] = ptr;
+      ptr+=strlen(ptr);
+    } 
+
+  
+  return values;
 }
 
-
-static struct index_value *index_mm_search_node(struct index_mm_node *node, const char *key, int i)
+static struct value_mm index_mm_search_node(struct index_mm_node *node, const char *key, int i)
 {
 	struct index_mm_node *child;
+	struct value_mm values={0,0,0,NULL,NULL,NULL};
 	
 	char ch;
 	int j;
@@ -969,24 +1023,14 @@ static struct index_value *index_mm_search_node(struct index_mm_node *node, cons
 
 			if (ch != key[i+j]) {
 				index_mm_free_node(node);
-				return NULL;
+				return values;
 			}
 		}
 
 		i += j;
 		
 		if (key[i] == '\0') {
-
-		  struct index_value *values=xmalloc((node->v_N+1)*sizeof(struct index_value));
-
-		  values[node->v_N].word=NULL;
-
-		  for(int k=0;k<node->v_N;k++)
-		    {
-		      values[k].word=node->coded_value[k].word;
-		      values[k].value=node->coded_value[k].value;
-		    }		  
-		  
+		  values=fetch_value(node, key);
 		  index_mm_free_node(node);
 		  return values;
 		}
@@ -996,20 +1040,12 @@ static struct index_value *index_mm_search_node(struct index_mm_node *node, cons
 		i++;
 	}
 
-	return NULL;
+	return values;
 }
 
 
-static  struct index_value *index_mm_search(struct index_mm *idx, const char *key)
-{
 
-	struct index_mm_node *root;
-	struct index_value *result;
-	root = index_mm_readroot(idx);
-	result = index_mm_search_node(root, key, 0);
 
-	return result;
-}
 
 
 
@@ -1023,37 +1059,30 @@ extern int decode_articles(char *key,struct article **cards,int *cards_number, s
   if(len<0)
       return 1;
 
-  struct index_value *values;
 
-  values = index_mm_search(index, (const char *)key_decompose);
-  if (!values||!values[0].word)
+
+  struct index_mm_node *root;
+  root = index_mm_readroot(index);
+  
+  struct value_mm values=index_mm_search_node(root, (const char *)key_decompose, 0);
+
+  if (!values.N)
     {
-      free(values);
       free(key_decompose);
       return 1;
     }
 
-
-  if(!strcmp(values[0].word,""))
-    values[0].word=(char *)key_decompose;
   
   int i=0;
-  while(values[i].word&&strcmp(values[i].word,key))
-      i++;
-  
-  if(!values[i].word)
+  for(;i<values.N&&strcmp(values.words[i],key);i++);
+    
+  if(i==values.N)
     i=0;
 
-
-
-  size_t inlen=strlen(values[i].value);
-  char *definition =xmalloc((inlen*2+2)*sizeof(char));
-  Decompress(values[i].value,inlen, definition);
-  
   int C=0;
   size_t par[3]={0};
   struct article * current;
-  char *S=definition;
+  char *S=values.defs[i];
   char *E;
   while(S!=NULL&&*S!='\0') {
     for(int j=0;j<3;j++)
@@ -1066,16 +1095,17 @@ extern int decode_articles(char *key,struct article **cards,int *cards_number, s
     current->dic=par[0];
     current->full_definition = NULL;
     current->definition=NULL;
-    current->word=xstrdup(values[i].word);
+    current->word=xstrdup(values.words[i]);
     current->start=par[1];
     current->size=par[2];
     C++;
   }
   *cards_number=C;
 
-  free(definition);
+  free(values.words);
+  free(values.defs);
+  free(values.value);
   free(key_decompose);
-  free(values);
 
   return 0;
 }
@@ -1088,7 +1118,6 @@ extern struct dictionary * get_dictionary(struct dictionary *Dic, int N, int id)
 
 }
 
-#include "dictzip.h"
 extern char * word_fetch(struct dictionary * Dic, int start, int size)
   {
   dictData * dz;
@@ -1119,14 +1148,18 @@ static void index_mm_search_all(struct search_results *sr,struct index_mm_node *
   
   if(node->v_N&&*sr->max_len>sr->buf.len &&   sr->buf.len>=key.len &&  strstr(sr->buf.str   , key.str))
     {
+
+      struct value_mm values=fetch_value(node, sr->buf.str);
       
       for(int j=0;j<node->v_N;j++)
 	{
 	  int k=0;
 	  struct string r;
-	  
-	  r.str=(node->coded_value[j].word[0]!='\0') ? node->coded_value[j].word : sr->buf.str;
+
+	  r.str = values.words[j];
 	  r.len=strlen(r.str);
+
+
 	  
 	  if(*sr->count<sr->max_results)
 	    k=*sr->count;
@@ -1148,6 +1181,11 @@ static void index_mm_search_all(struct search_results *sr,struct index_mm_node *
 	  (*sr->count)++;
 	  
 	}
+
+      free(values.words);
+      free(values.defs);
+      free(values.value);
+      
     }
   
   if((*sr->count<sr->max_results)|| ( *sr->max_len>sr->buf.len))

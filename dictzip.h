@@ -88,12 +88,12 @@ extern void dict_data_close (
 
 extern char *dict_data_read_ (
    dictData *data,
-   unsigned long start, unsigned long end,
+   unsigned long start, unsigned long size,
    const char *preFilter,
    const char *postFilter );
 
-extern int        mmap_mode;
-
+  extern  int dict_data_zip( FILE *inFilename, const char *outFilename);
+  
 #ifdef __cplusplus
 }  /* end extern "C" */
 #endif

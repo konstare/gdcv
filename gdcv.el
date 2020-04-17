@@ -1,7 +1,7 @@
 (require 'gdcv-elisp)
 
-(defvar gdcv-index-path "~/.config/gdcv/index.db"
-  "Path to index file formed by gdcv -i. Usually ~/.config/gdcv/index.db")
+(defvar gdcv-index-path "~/.config/gdcv"
+  "Path to index files formed by gdcv -i. Usually ~/.config/gdcv/")
 
 (defvar gdcv-buffer "*gdcv*"
   "Buffer for translation")
@@ -37,7 +37,7 @@
 (defun gdcv--handler ()
   "Clean up resources used by the gdcv."
   (unless gdcv-db
-    (setf gdcv-db (gdcv-database-open  (file-truename gdcv-index-path)))))
+    (setf gdcv-db (gdcv-database-open   (file-truename gdcv-index-path)))))
 
 
 

@@ -6,9 +6,26 @@
  * Few bugs are introduced.
  * First, all dictionary files with *dsl.dz extension are found in the given directories.
  * These files are read with gzread line by line, all words are going through Unicode normalization (utf8proc library is used).
- * The index file is saved.
+ * The index  contains two files. index_value.db and index_key.
  *
- * Disk format:
+ *
+ *
+ * Disk format for index_value.db:
+ *
+ *
+ * char *word //null terminated 
+ * all words are grouped by their unicode normalisation form, so: dog,DOG, Dög are in one group. 
+ * To save space,  if a word is equal to the key then it is skipped.
+ *
+ *
+ * char * dictionary_id:start_offset:end_offset: //null terminated
+ * start_offset and end_offset are positions of the word translation in dictionary file.
+ * The file is compressed with dictzip.
+ *
+ *
+ *
+ *
+ * Disk format for index_key.db:
  *
  *  uint32_t magic = INDEX_MAGIC;
  *  uint32_t version = INDEX_VERSION;
@@ -32,14 +49,10 @@
  *       uint32_t children[N];
  *
  *       unsigned char v_N; //number of values.
- *       char* words; // nul terminated /// all words are grouped by their unicode normalisation form, so: dog,DOG, Dög are in one group. 
- *       To save space,  if a word is equal to the key then it is skipped.
- *       char* values; // nul terminated  
- *
- *        values are in format dictionary_id:start_offset:end_offset: 
- *        start_offset and end_offset are positions of the word translation in dictionary file.
- *        values are compressed.
- *
+ *        
+ *       long start; 
+ *       long end; 
+ *       start and end position for list of words similar to the key and the list of dictionaries in the file index_value.db
  *
  *
  *  (node_offset & INDEX_NODE_FLAGS) indicates which fields are present.
@@ -106,6 +119,7 @@
 #include <stdint.h> //uint32_t
 #include <sys/stat.h> //stat
 
+#include "dictzip.h"
 
 
 struct childrens {
@@ -155,6 +169,7 @@ struct index_mm {
   size_t size;
   int N;
   struct dictionary *Dic;
+  dictData * dz;
 };
 
 struct root_
@@ -197,10 +212,10 @@ extern void index_destroy(struct index_node *node);
 
 extern void root_destroy(struct root_ D);
 
-extern void index_write(const struct index_node *node, struct root_ D, FILE *out);
+extern void index_write(const struct index_node *node, struct root_ D, char *index_path);
 
 
-extern struct index_mm *index_mm_open( const char *filename, struct stat *stamp);
+extern struct index_mm *index_mm_open( char *index_path);
 
 
 extern void index_mm_close(struct index_mm *idx);
