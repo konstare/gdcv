@@ -1,5 +1,8 @@
 (require 'gdcv-elisp)
 
+
+(defvar ivy-more-chars-alist)
+
 (defvar gdcv-index-path "~/.config/gdcv"
   "Path to index files formed by gdcv -i. Usually ~/.config/gdcv/")
 
@@ -32,16 +35,22 @@
   "Clean up resources used by the gdcv."
   (when gdcv-db
     (gdcv-database-close gdcv-db)
-    (setf gdcv-db nil)))
+    (setq gdcv-db nil)))
 
 (defun gdcv--handler ()
   "Clean up resources used by the gdcv."
   (unless gdcv-db
-    (setf gdcv-db (gdcv-database-open   (file-truename gdcv-index-path)))))
+    (setq gdcv-db (gdcv-database-open   (file-truename gdcv-index-path)))))
 
 
 
 
+(require 'subr-x)
+
+(defun gdcv--look-word (word)
+  (if (equal (substring word 0 1) "*")
+      (gdcv-look-word gdcv-db (string-remove-prefix  "*" word) 0 )
+    (gdcv-look-word gdcv-db  word 1 )))
 
 
 (defun gdcv-choose-defs (word)
@@ -75,15 +84,15 @@
       (add-text-properties 0 (length name)
     			   `(face font-lock-type-face Dic nil Start nil End nil Definition t Folded nil ) name)
       (insert name))
-    (dolist (w (gdcv-look-word gdcv-db word 0))
+    (dolist (w (gdcv--look-word (concat "*" word)))
       (add-text-properties 0 (length w) (nconc
-    					 (list 'mouse-face 'highlight  'help-echo "Follow")
-    					 (list 'face `(:foreground "DeepSkyBlue"))
-    					 `(link t))  w)
+					 (list 'mouse-face 'highlight  'help-echo "Follow")
+					 (list 'face `(:foreground "DeepSkyBlue"))
+					 `(link t))  w)
       (insert (concat   w "\n")))
     
     (gdcv-mode)
-    (beginning-of-buffer)
+    (goto-char (point-min))
     (outline-next-heading)
     (gdcv-show-entry)))
 
@@ -108,7 +117,7 @@
   	       (data (when dic (gdcv-word-fetch gdcv-db dic start end ))) 
 	       (article  (car data))
 	       )
-	  (next-line)
+	  (forward-line)
 	  (dolist (property (car (cdr data)))
 	    (let ((type (nth 0 property))
 		  (S (nth 1 property))
@@ -254,18 +263,18 @@
 (setf (alist-get 'ivy-gdcv ivy-more-chars-alist) 1)
 
 
-(require 'subr-x)
+
 
 (defun ivy-gdcv ()
   "Use ivy-read to select your search history."
   (interactive)
   (gdcv--handler)
+  
   (ivy-read "Search gdcv: " #'(lambda (word )
 				(or
 				 (ivy-more-chars)
-				 (if (equal (substring word 0 1) "*")
-				     (gdcv-look-word gdcv-db (string-remove-prefix  "*" word) 0)
-				   (gdcv-look-word gdcv-db  word 1)) ))
+				 (gdcv--look-word word)
+				 ))
 	    :dynamic-collection t
 	    :action #'gdcv-choose-defs
 	    :caller 'ivy-gdcv))

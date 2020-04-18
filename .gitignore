@@ -6,3 +6,5 @@
 /gdcv_debug
 /gmon.out
 /analysis.txt
+/*.log
+*.elc

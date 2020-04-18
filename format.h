@@ -40,3 +40,4 @@ extern void render_cli(struct dictionary D,struct format_ *format,int color,char
 extern void show_dictionaries(struct root_ D);
 
 extern void strip_tags(char *src,struct format_ *format);
+extern void free_format(struct format_ *format);

@@ -435,3 +435,12 @@ extern void strip_tags(char *src,struct format_ *format)
   
   return ;
 }
+
+extern void free_format(struct format_ *format){
+  for(int i=0;i<format->N;i++)
+    if(format->tag[i].properties)
+      free(format->tag[i].properties);
+  
+  free(format->tag);
+  free(format->string);
+}

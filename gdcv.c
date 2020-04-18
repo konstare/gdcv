@@ -204,12 +204,7 @@ int main(int argc, char *argv[])
 		free(Art[i].full_definition);
 		free(Art[i].word);
 		
-		
-		for(int i=0;i<format.N;i++)
-		  if(format.tag[i].properties)
-		    free(format.tag[i].properties);
-		free(format.tag);
-		free(format.string);
+		free_format(&format);
 
 	      }
 

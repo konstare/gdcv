@@ -935,6 +935,9 @@ extern struct index_mm *index_mm_open(char *index_path)
 	
 	close(fd);
 
+	free(filename);
+	free(value_file);
+
 	return idx;
 
 fail:
@@ -943,6 +946,9 @@ fail_nommap:
 	close(fd);
 fail_open:
 	free(idx);
+
+	free(filename);
+	free(value_file);
 	return NULL;
 }
 
@@ -1244,6 +1250,8 @@ static void index_mm_search_prefix(struct index_mm_node *node, struct search_res
 
   return ;
 }
+
+
 
 
 
