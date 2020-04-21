@@ -503,45 +503,37 @@ extern struct root_ index_directories (char **dir_list)
    Pre-order is simpler for writing, and depmod is already slow.
  */
 
-#define SetBit(A,k)  ( A[(k/32)] |= (1 << (k%32)) )
-#define ClearBit(A,k)   ( A[(k/32)] &= ~(1 << (k%32)) )
-#define TestBit(A,k)    ( A[(k/32)] & (1 << (k%32)) )
+#define SetBit(A,k)  ( A |= (1 << ((unsigned char)k/32)) )
+#define TestBit(A,k)    ( A & (1 << ((unsigned char)k/32)) )
 
-static void index_reformat__node(struct index_node *node, uint32_t *bits_n)
+static uint32_t index_reformat__node(struct index_node *node)
 {
-  uint32_t bits_ch[8];
-  uint32_t bits_t[8];
+  uint32_t bits_n=0;
+  uint32_t bits_t=0;
   
   struct index_node *child;
 
   if (!node)
-    {
-      memset(bits_n, 0, 8*sizeof(uint32_t));
-      return ;
-    }
+      return bits_n;
+
   char ch;
   for(int j=0;(ch=node->prefix[j]);j++)
-    SetBit(bits_n,(unsigned char)ch);
+    SetBit(bits_n,ch);
   
-
   if (node->childrens)
     {
       for (int i = 0; i < node->c_N; i++)
 	{
-	  SetBit(bits_n,(unsigned char)node->childrens[i].ch);
+	  ch=node->childrens[i].ch;
+	  SetBit(bits_n,ch);
 	  child = node->childrens[i].node;
-	  memset(bits_ch, 0, 8*sizeof(uint32_t));
-	  index_reformat__node(child, &bits_ch[0]);
-	  for(int j=0;j<8;j++)
-	    bits_n[j]|=bits_ch[j];
+	  bits_t=index_reformat__node(child);
+	  node->childrens[i].gc=htonl(bits_t);
+	  bits_n|=bits_t;
 	}
     }
 
-  for(int j=0;j<8;j++)
-    bits_t[j]=htonl(bits_n[j]);
-
-  memcpy(node->grand_ch, bits_t, 8*sizeof(uint32_t));
-  return ;
+  return bits_n;
 }
 
 static uint32_t index_write__node(const struct index_node *node, FILE *out, FILE * value_out)
@@ -577,8 +569,6 @@ static uint32_t index_write__node(const struct index_node *node, FILE *out, FILE
 	/* Now write this node */
 	offset = ftell(out);
 
-	fwrite(node->grand_ch, sizeof(uint32_t), 8, out);
-
 	if (node->prefix[0]) {
 	  fputs(node->prefix, out);
 	  fputc('\0', out);
@@ -592,6 +582,7 @@ static uint32_t index_write__node(const struct index_node *node, FILE *out, FILE
 	    for(i=0; i<c_N;i++)
 	      {
 		fputc(node->childrens[i].ch, out);
+		fwrite(&node->childrens[i].gc, sizeof(uint32_t), 1, out);
 		fwrite(&child_offs[i], sizeof(uint32_t), 1, out);
 	      }
 
@@ -712,8 +703,7 @@ extern void index_write(const struct index_node *node, struct root_ D, char *ind
 
 
 	//reformat nodes;
-	uint32_t bits_n[8]={0,0,0,0,0,0,0,0};
-	index_reformat__node((struct index_node *)node, &bits_n[0]);
+	index_reformat__node((struct index_node *)node);
 
 	
 	/* Dump trie */
@@ -773,6 +763,7 @@ static const char _idx_empty_str[] = "";
 
 struct children_mm {
   char ch;		/* path compression */
+  uint32_t gc;
   uint32_t offset; /* indexed by character */
 };
 
@@ -785,7 +776,6 @@ struct index_mm_node {
   struct children_mm  *children;
   uint32_t start_v;
   uint32_t end_v;
-  uint32_t GC[8];
 };
 
 
@@ -848,7 +838,6 @@ static struct index_mm_node *index_mm_read_node(struct index_mm *idx, uint32_t o
   unsigned char  v_N=0;
   uint32_t start_v=0;
   uint32_t end_v=0;
-  uint32_t bit_n[8];
   int i;
 
 
@@ -858,9 +847,6 @@ static struct index_mm_node *index_mm_read_node(struct index_mm *idx, uint32_t o
 
 
   p = (char *)p + (offset & INDEX_NODE_MASK);
-
-  for(i=0;i<8;i++)
-    bit_n[i] = read_long_mm(&p);
 
   
   if (offset & INDEX_NODE_PREFIX) {
@@ -873,6 +859,7 @@ static struct index_mm_node *index_mm_read_node(struct index_mm *idx, uint32_t o
     for(i=0;i<c_N;i++)
       {
 	kids[i].ch = read_char_mm(&p);
+	kids[i].gc = read_long_mm(&p);
 	kids[i].offset = read_long_mm(&p);
       }
   
@@ -899,12 +886,8 @@ static struct index_mm_node *index_mm_read_node(struct index_mm *idx, uint32_t o
   
   node->children=(struct children_mm *)((char *)node +  sizeof(struct index_mm_node));
 
-  memcpy(node->GC, bit_n, 8*sizeof(uint32_t));
-  
   if(c_N)
-    {
       memcpy(node->children, kids, c_N*sizeof(struct children_mm));
-    }
   else
     node->children=NULL;
     
@@ -1348,23 +1331,19 @@ static void index_mm_search_all2(struct search_results *sr,struct index_mm_node 
       
       for(int k=0;   k<node->c_N;k++)
 	{
-	  child = index_mm_read_node(node->idx, node->children[k].offset); // redefine node from parent to child
-
-	  child_result=*sr;
-	  child_result.buf.str[child_result.buf.len++]=node->children[k].ch;
-
 	  if(i<key.len)
-	      tempi=(key.str[i]==node->children[k].ch) ? i+1 : 0;
+	    tempi=(key.str[i]==node->children[k].ch) ? i+1 : 0;
 	  else
 	    tempi=i;
 
-	  for(j=tempi;j<key.len&&TestBit(child->GC,(unsigned char)key.str[j]);j++);
+	  for(j=tempi;j<key.len&&TestBit(node->children[k].gc,key.str[j]);j++);
 	  
-	  if(j==key.len)
-	    index_mm_search_all2(&child_result,child,key,tempi);
-	  else
-	    index_mm_free_node(child);
-	  
+	  if(j==key.len)	    {
+	      child = index_mm_read_node(node->idx, node->children[k].offset); // redefine node from parent to child
+	      child_result=*sr;
+	      child_result.buf.str[child_result.buf.len++]=node->children[k].ch;
+	      index_mm_search_all2(&child_result,child,key,tempi);
+	      }
 	}
     }
   

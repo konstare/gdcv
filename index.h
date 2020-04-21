@@ -125,6 +125,7 @@
 struct childrens {
   char ch;		/* path compression */
   struct index_node *node; /* indexed by character */
+  uint32_t gc; //breaf information about grand childrens.
 };
 
 struct index_value{
@@ -138,7 +139,6 @@ struct index_node
   char *key;
   int v_N;  //Number of values,
   struct index_value *values;
-  uint32_t grand_ch[8];
   unsigned char c_N; //Number of childrens,
   struct  childrens *childrens; //array of childrens.
 }; 
