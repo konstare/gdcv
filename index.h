@@ -46,6 +46,8 @@
  *       
  *       unsigned char N; //number of childrens
  *       char children[N];
+ *       uint32_t grand_childrens[N];   information about chars which are in the children node and below.
+ *       If  grand_childrens& (1 << (ch/32)) ), then ch is in the branch somewhere. This double search speed.
  *       uint32_t children[N];
  *
  *       unsigned char v_N; //number of values.
@@ -213,7 +215,7 @@ extern void index_destroy(struct index_node *node);
 
 extern void root_destroy(struct root_ D);
 
-extern void index_write(const struct index_node *node, struct root_ D, char *index_path);
+extern void index_write(struct index_node *node, struct root_ D, char *index_path);
 
 
 extern struct index_mm *index_mm_open( char *index_path);
