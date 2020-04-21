@@ -50,8 +50,8 @@
  *
  *       unsigned char v_N; //number of values.
  *        
- *       long start; 
- *       long end; 
+ *       uint32_t start; 
+ *       uint32_t end; 
  *       start and end position for list of words similar to the key and the list of dictionaries in the file index_value.db
  *
  *
@@ -138,6 +138,7 @@ struct index_node
   char *key;
   int v_N;  //Number of values,
   struct index_value *values;
+  uint32_t grand_ch[8];
   unsigned char c_N; //Number of childrens,
   struct  childrens *childrens; //array of childrens.
 }; 

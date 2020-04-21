@@ -1,7 +1,6 @@
 #define _GNU_SOURCE /* for FNM_CASEFOLD, FNM_EXTMATCH, strcasestr in fnmatch.h, a GNU extension */
-#include <libgen.h> //basename
 #include "utils.h"
-#include <search.h>//tsearch tfind
+#include <search.h>//bsearch
 #include <zlib.h>  //gzFile gzclose gzgets
 #include <fts.h> //fts_open fts_read fts_close
 #include <fnmatch.h> //fnmatch
@@ -19,7 +18,7 @@
 #define CHAR_BUFFER_SIZE 2097152
 
 #define INDEX_MAGIC 0x57EE1
-#define INDEX_VERSION_MAJOR 0x0002
+#define INDEX_VERSION_MAJOR 0x0003
 #define INDEX_VERSION_MINOR 0x0001
 #define INDEX_VERSION ((INDEX_VERSION_MAJOR<<16)|INDEX_VERSION_MINOR)
 
@@ -503,9 +502,51 @@ extern struct root_ index_directories (char **dir_list)
    However, index reading is already fast enough.
    Pre-order is simpler for writing, and depmod is already slow.
  */
+
+#define SetBit(A,k)  ( A[(k/32)] |= (1 << (k%32)) )
+#define ClearBit(A,k)   ( A[(k/32)] &= ~(1 << (k%32)) )
+#define TestBit(A,k)    ( A[(k/32)] & (1 << (k%32)) )
+
+static void index_reformat__node(struct index_node *node, uint32_t *bits_n)
+{
+  uint32_t bits_ch[8];
+  uint32_t bits_t[8];
+  
+  struct index_node *child;
+
+  if (!node)
+    {
+      memset(bits_n, 0, 8*sizeof(uint32_t));
+      return ;
+    }
+  char ch;
+  for(int j=0;(ch=node->prefix[j]);j++)
+    SetBit(bits_n,(unsigned char)ch);
+  
+
+  if (node->childrens)
+    {
+      for (int i = 0; i < node->c_N; i++)
+	{
+	  SetBit(bits_n,(unsigned char)node->childrens[i].ch);
+	  child = node->childrens[i].node;
+	  memset(bits_ch, 0, 8*sizeof(uint32_t));
+	  index_reformat__node(child, &bits_ch[0]);
+	  for(int j=0;j<8;j++)
+	    bits_n[j]|=bits_ch[j];
+	}
+    }
+
+  for(int j=0;j<8;j++)
+    bits_t[j]=htonl(bits_n[j]);
+
+  memcpy(node->grand_ch, bits_t, 8*sizeof(uint32_t));
+  return ;
+}
+
 static uint32_t index_write__node(const struct index_node *node, FILE *out, FILE * value_out)
 {
-  long offset;
+  uint32_t offset;
   uint32_t *child_offs = NULL;
   unsigned char c_N=node->c_N;
   unsigned char v_N=node->v_N;
@@ -535,7 +576,9 @@ static uint32_t index_write__node(const struct index_node *node, FILE *out, FILE
 		
 	/* Now write this node */
 	offset = ftell(out);
-	
+
+	fwrite(node->grand_ch, sizeof(uint32_t), 8, out);
+
 	if (node->prefix[0]) {
 	  fputs(node->prefix, out);
 	  fputc('\0', out);
@@ -551,8 +594,11 @@ static uint32_t index_write__node(const struct index_node *node, FILE *out, FILE
 		fputc(node->childrens[i].ch, out);
 		fwrite(&child_offs[i], sizeof(uint32_t), 1, out);
 	      }
-	  
-	  free(child_offs);
+
+	    free(child_offs);
+
+	    
+
 	  offset |= INDEX_NODE_CHILDS;
 	}
 	
@@ -569,8 +615,8 @@ static uint32_t index_write__node(const struct index_node *node, FILE *out, FILE
 		break;
 	      }
 	  
-	  long start_v;
-	  long end_v;
+	  uint32_t start_v;
+	  uint32_t end_v;
 
 	  start_v=htonl(ftell(value_out));
 	  
@@ -643,7 +689,7 @@ extern void index_write(const struct index_node *node, struct root_ D, char *ind
   FILE *out=fopen(keyDB, "w");
   FILE *value_out=tmpfile();
   
-	long initial_offset, final_offset;
+	uint32_t initial_offset, final_offset;
 	uint32_t u;
 	
 	u = htonl(INDEX_MAGIC);
@@ -663,6 +709,12 @@ extern void index_write(const struct index_node *node, struct root_ D, char *ind
 	initial_offset = ftell(out);
 	u = 0;
 	fwrite(&u, sizeof(uint32_t), 1, out);
+
+
+	//reformat nodes;
+	uint32_t bits_n[8]={0,0,0,0,0,0,0,0};
+	index_reformat__node((struct index_node *)node, &bits_n[0]);
+
 	
 	/* Dump trie */
 	u = htonl(index_write__node(node, out,value_out));
@@ -731,8 +783,9 @@ struct index_mm_node {
   unsigned char v_N;
   unsigned char c_N;
   struct children_mm  *children;
-  long start_v;
-  long end_v;
+  uint32_t start_v;
+  uint32_t end_v;
+  uint32_t GC[8];
 };
 
 
@@ -778,6 +831,7 @@ static inline char *read_chars_mm(void **p )
 }
 
 
+
 static void index_mm_free_node(struct index_mm_node *node)
 {
   free(node);
@@ -792,8 +846,9 @@ static struct index_mm_node *index_mm_read_node(struct index_mm *idx, uint32_t o
   struct children_mm kids[UCHAR_MAX];
   unsigned char  c_N=0;
   unsigned char  v_N=0;
-  long start_v=0;
-  long end_v=0;
+  uint32_t start_v=0;
+  uint32_t end_v=0;
+  uint32_t bit_n[8];
   int i;
 
 
@@ -804,6 +859,10 @@ static struct index_mm_node *index_mm_read_node(struct index_mm *idx, uint32_t o
 
   p = (char *)p + (offset & INDEX_NODE_MASK);
 
+  for(i=0;i<8;i++)
+    bit_n[i] = read_long_mm(&p);
+
+  
   if (offset & INDEX_NODE_PREFIX) {
     prefix = read_chars_mm(&p);
   } else
@@ -816,7 +875,7 @@ static struct index_mm_node *index_mm_read_node(struct index_mm *idx, uint32_t o
 	kids[i].ch = read_char_mm(&p);
 	kids[i].offset = read_long_mm(&p);
       }
-    
+  
   }
   
   if (offset & INDEX_NODE_VALUES) {
@@ -839,9 +898,13 @@ static struct index_mm_node *index_mm_read_node(struct index_mm *idx, uint32_t o
   node->end_v=end_v;
   
   node->children=(struct children_mm *)((char *)node +  sizeof(struct index_mm_node));
+
+  memcpy(node->GC, bit_n, 8*sizeof(uint32_t));
   
   if(c_N)
-    memcpy(node->children, kids, c_N*sizeof(struct children_mm));
+    {
+      memcpy(node->children, kids, c_N*sizeof(struct children_mm));
+    }
   else
     node->children=NULL;
     
@@ -978,8 +1041,8 @@ static struct index_mm_node *index_mm_readchild(const struct index_mm_node *pare
 
 struct value_mm{
   char N;
-  long start;
-  long end;
+  uint32_t start;
+  uint32_t end;
   char **words;
   char **defs;
   char *value;
@@ -1147,6 +1210,7 @@ static int comp_len(const void *a1, const void *a2) {
 static void index_mm_search_all(struct search_results *sr,struct index_mm_node *node, const struct string key) 
 {
   const int len=strlen(node->prefix);
+
   strcpy(sr->buf.str +sr->buf.len,node->prefix);
   
   sr->buf.len+=len;
@@ -1207,6 +1271,100 @@ static void index_mm_search_all(struct search_results *sr,struct index_mm_node *
 	  child_result.buf.str[child_result.buf.len++]=node->children[i].ch;
 
 	  index_mm_search_all(&child_result,child,key);
+	}
+    }
+  
+  index_mm_free_node(node);
+}
+
+static void index_mm_search_all2(struct search_results *sr,struct index_mm_node *node, const struct string key, size_t i) 
+{
+  
+  const int len=strlen(node->prefix);
+  strcpy(sr->buf.str +sr->buf.len,node->prefix);
+  sr->buf.len+=len;
+
+  char ch;
+  for(int j=0;(ch=node->prefix[j]);j++)
+    {
+      if(i<key.len)
+	{
+	  if(key.str[i]==ch)
+	    i++;
+	  else
+	    i=0;
+	}
+    }
+
+  
+  if(node->v_N&&*sr->max_len>sr->buf.len &&   i==key.len)
+    {
+
+      struct value_mm values=fetch_value(node, sr->buf.str);
+      
+      for(int j=0;j<node->v_N;j++)
+	{
+	  int k=0;
+	  struct string r;
+
+	  r.str = values.words[j];
+	  r.len=strlen(r.str);
+
+
+	  
+	  if(*sr->count<sr->max_results)
+	    k=*sr->count;
+	  else
+	    {
+	      qsort(sr->res, sr->max_results, sizeof(struct string), comp_len);
+
+	      *sr->max_len=sr->res[sr->max_results-1].len;
+
+	      for(k=sr->max_results-1;k>=0&&sr->res[k].len<r.len;k--);
+	    }
+
+	  if(k>=0)
+	    {
+	      strcpy(sr->res[k].str,r.str);
+	      sr->res[k].len=r.len;
+	    }
+	  
+	  (*sr->count)++;
+	  
+	}
+
+      free(values.words);
+      free(values.defs);
+      free(values.value);
+      
+    }
+  
+  if((*sr->count<sr->max_results)|| ( *sr->max_len>sr->buf.len))
+    {
+      struct index_mm_node *child;
+      struct search_results child_result;
+      int tempi;
+      size_t j;
+      
+      for(int k=0;   k<node->c_N;k++)
+	{
+	  child = index_mm_read_node(node->idx, node->children[k].offset); // redefine node from parent to child
+
+	  child_result=*sr;
+	  child_result.buf.str[child_result.buf.len++]=node->children[k].ch;
+
+	  if(i<key.len)
+	      tempi=(key.str[i]==node->children[k].ch) ? i+1 : 0;
+	  else
+	    tempi=i;
+
+	  for(j=tempi;j<key.len&&TestBit(child->GC,(unsigned char)key.str[j]);j++);
+	  
+	  if(j==key.len)
+	    index_mm_search_all2(&child_result,child,key,tempi);
+	  else
+	    index_mm_free_node(child);
+	  
 	}
     }
   
@@ -1295,7 +1453,7 @@ extern void look_for_a_word(struct index_mm *idx,char *word,int *art, struct art
   if(is_prefix)
     index_mm_search_prefix(node, &sr, key);
   else
-    index_mm_search_all(&sr,node,(struct string){strlen(key),key}); 
+    index_mm_search_all2(&sr,node,(struct string){strlen(key),key},0); 
 
   
   

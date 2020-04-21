@@ -2,7 +2,7 @@
 #include <sys/stat.h> //mkdir
 #include <argp.h> //argp
 #include <error.h> //argp
-#include <string.h> //strdup, memcpy, strcmp, strlen sscanf strtok
+#include <string.h> // strcmp
 #include <stdio.h> //perror printf FILENAME_MAX
 
 #include "utils.h"
@@ -96,12 +96,8 @@ void render_cli(struct dictionary D,struct format_ *format,int color,char *unzip
 
 int main(int argc, char *argv[])  
 {
-  struct arguments_ arguments;
-  arguments.word="";
-  arguments.color=0;
-  arguments.unzip="";
-  arguments.index_path=NULL;
-  arguments.to_index=0;
+  struct arguments_ arguments={"","",0,NULL,0};
+
   argp_parse (&argp, argc, argv, 0, 0, &arguments);
 
   char *index_path=NULL;
