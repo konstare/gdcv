@@ -528,7 +528,7 @@ static uint32_t index_add_grand_childrens(struct index_node *node)
 	  ch=node->childrens[i].ch;
 	  SetBit(bits_n,ch);
 	  child = node->childrens[i].node;
-	  bits_t=index_reformat__node(child);
+	  bits_t=index_add_grand_childrens(child);
 	  node->childrens[i].gc=htonl(bits_t);
 	  bits_n|=bits_t;
 	}
@@ -1194,13 +1194,9 @@ static void index_mm_search_all2(struct search_results *sr,struct index_mm_node 
   sr->buf.len+=len;
 
   char ch;
-  for(int j=0;i<key.len&&(ch=node->prefix[j]);j++)
-    {
-	  if(key.str[i]==ch)
-	    i++;
-	  else
-	    i=0;
-    }
+  for(int j=0;i<key.len&&(ch=node->prefix[j]);j++,i++)
+    if(key.str[i]!=ch)
+      i=0;
 
   
   if(node->v_N&&*sr->max_len>sr->buf.len &&   i==key.len)
