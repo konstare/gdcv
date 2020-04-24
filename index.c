@@ -509,8 +509,8 @@ extern struct root_ index_directories (char **dir_list)
 
 static uint32_t index_add_grand_childrens(struct index_node *node)
 {
-  uint32_t bits_n=0;
-  uint32_t bits_t=0;
+  unsigned char bits_n=0;
+  unsigned char bits_t=0;
   
   struct index_node *child;
 
@@ -529,7 +529,7 @@ static uint32_t index_add_grand_childrens(struct index_node *node)
 	  SetBit(bits_n,ch);
 	  child = node->childrens[i].node;
 	  bits_t=index_add_grand_childrens(child);
-	  node->childrens[i].gc=htonl(bits_t);
+	  node->childrens[i].gc=bits_t;
 	  bits_n|=bits_t;
 	}
     }
@@ -583,7 +583,7 @@ static uint32_t index_write__node(const struct index_node *node, FILE *out, FILE
 	    for(i=0; i<c_N;i++)
 	      {
 		fputc(node->childrens[i].ch, out);
-		fwrite(&node->childrens[i].gc, sizeof(uint32_t), 1, out);
+		fputc(node->childrens[i].gc, out);
 		fwrite(&child_offs[i], sizeof(uint32_t), 1, out);
 	      }
 
@@ -764,7 +764,7 @@ static const char _idx_empty_str[] = "";
 
 struct children_mm {
   char ch;		/* path compression */
-  uint32_t gc;
+  unsigned char gc;
   uint32_t offset; /* indexed by character */
 };
 
@@ -860,7 +860,7 @@ static struct index_mm_node *index_mm_read_node(struct index_mm *idx, uint32_t o
     for(i=0;i<c_N;i++)
       {
 	kids[i].ch = read_char_mm(&p);
-	kids[i].gc = read_long_mm(&p);
+	kids[i].gc = read_char_mm(&p);
 	kids[i].offset = read_long_mm(&p);
       }
   
@@ -1180,12 +1180,29 @@ extern char * word_fetch(struct dictionary * Dic, int start, int size)
   return definition;
   }
 
+struct string {
+  size_t len;
+  char *str;
+};
+
+struct search_results
+{
+  int *count;
+  struct string buf;
+  struct string *res;
+  size_t *max_len;
+  int max_results;
+};
+
+
+
 static int comp_len(const void *a1, const void *a2) {
   const struct string *k1 = a1;
   const  struct string *k2 = a2;
   return k1->len-k2->len;
 }
 
+#define        MIN(a,b) (((a)<(b))?(a):(b))
 static void index_mm_search_all2(struct search_results *sr,struct index_mm_node *node, const struct string key, size_t i) 
 {
   
@@ -1194,50 +1211,53 @@ static void index_mm_search_all2(struct search_results *sr,struct index_mm_node 
   sr->buf.len+=len;
 
   char ch;
-  for(int j=0;i<key.len&&(ch=node->prefix[j]);j++,i++)
-    if(key.str[i]!=ch)
-      i=0;
+  for(int j=0;i<key.len&&(ch=node->prefix[j]);j++)
+    {
+	  if(key.str[i]==ch)
+	    i++;
+	  else
+	    i=0;
+    }
 
   
   if(node->v_N&&*sr->max_len>sr->buf.len &&   i==key.len)
     {
-
       struct value_mm values=fetch_value(node, sr->buf.str);
       
       for(int j=0;j<node->v_N;j++)
-	{
-	  int k=0;
-	  struct string r;
+      	{
+      	  int k=0;
+      	  struct string r;
 
-	  r.str = values.words[j];
-	  r.len=strlen(r.str);
-
+      	  r.str = values.words[j];
+      	  r.len=strlen(r.str);
 
 	  
-	  if(*sr->count<sr->max_results)
-	    k=*sr->count;
-	  else
-	    {
-	      qsort(sr->res, sr->max_results, sizeof(struct string), comp_len);
+      	  if(*sr->count<sr->max_results)
+      	    k=*sr->count;
+      	  else
+      	    {
+      	      qsort(sr->res, sr->max_results, sizeof(struct string), comp_len);
 
-	      *sr->max_len=sr->res[sr->max_results-1].len;
+      	      *sr->max_len=sr->res[sr->max_results-1].len;
 
-	      for(k=sr->max_results-1;k>=0&&sr->res[k].len<r.len;k--);
-	    }
+      	      for(k=sr->max_results-1;k>=0&&sr->res[k].len<r.len;k--);
+      	    }
 
-	  if(k>=0)
-	    {
-	      strcpy(sr->res[k].str,r.str);
-	      sr->res[k].len=r.len;
-	    }
+      	  if(k>=0)
+      	    {
+      	      strcpy(sr->res[k].str,r.str);
+      	      sr->res[k].len=r.len;
+      	    }
 	  
-	  (*sr->count)++;
+      	  (*sr->count)++;
 	  
-	}
+      	}
 
       free(values.words);
       free(values.defs);
       free(values.value);
+
       
     }
   

@@ -127,7 +127,7 @@
 struct childrens {
   char ch;		/* path compression */
   struct index_node *node; /* indexed by character */
-  uint32_t gc; //breaf information about grand childrens.
+  unsigned char gc; //breaf information about grand childrens.
 };
 
 struct index_value{
@@ -191,19 +191,6 @@ struct article {
   size_t size;
 };
 
-struct string {
-  size_t len;
-  char *str;
-};
-
-struct search_results
-{
-  int *count;
-  struct string buf;
-  struct string *res;
-  size_t *max_len;
-  int max_results;
-};
 
 
 
