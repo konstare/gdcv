@@ -33,6 +33,7 @@
 
 
 
+#define        MIN(a,b) (((a)<(b))?(a):(b))
 
 
 
@@ -1023,49 +1024,106 @@ static struct index_mm_node *index_mm_readchild(const struct index_mm_node *pare
 
 
 
-struct value_mm{
-  char N;
-  uint32_t start;
-  uint32_t end;
-  char **words;
-  char **defs;
-  char *value;
+struct string {
+  size_t len;
+  char *str;
 };
 
-static  struct value_mm fetch_value(struct index_mm_node *node, const char *key)
+struct result_list__node
 {
-  struct value_mm values={0,0,0,NULL,NULL,NULL};
+  struct string word;
+  struct result_list__node * next;
+};
 
+struct result_list
+{
+  struct result_list__node * head;
+  const int max;  //how much results are important to consider
+  int cnt; //how much results are caught
+  size_t max_len; //the maximum length of words in min(max,cnt)
+};
+
+struct result_list__node * combine_lists(struct result_list *dest_, struct result_list *src_)
+{
+  struct result_list__node **dest=&dest_->head;
+  struct result_list__node **src=&src_->head;
+
+  dest_->cnt+=src_->cnt;
+  while(*dest!=NULL&&(*dest)->word.len<(*src)->word.len)
+    dest=&(*dest)->next;
+
+  struct result_list__node *temp=*dest;
+  *dest=*src;
+
+  while(*dest!=NULL)
+    dest=&(*dest)->next;
+
+  *dest=temp;
+
+  dest=&dest_->head;
+  int i=0;
+  while(*dest!=NULL&&i<dest_->max)
+    {
+      dest_->max_len=(*dest)->word.len;
+      dest=&(*dest)->next;
+      i++;
+    }
+
+  
+  return temp;
+}
+
+
+struct result_list__node * insert_sorted(struct result_list *list, struct string str)
+{
+  struct result_list__node **link=&list->head;
+  while(*link!=NULL&&(*link)->word.len<str.len)
+    link=&(*link)->next;
+
+  struct result_list__node *new=xmalloc(sizeof(struct result_list__node));
+  new->word.str=xstrdup(str.str);
+  new->word.len=str.len;
+  new->next=*link;
+  *link=new;
+  return new;
+}
+
+
+
+static struct result_list fetch_value_list(struct index_mm_node *node, const char *key)
+{
+  struct result_list values={NULL,0,0,0};
+  size_t key_len=strlen(key); //all forms of the word can have different length, bu assign the length  of th general form
   if(!node->v_N)
     return values;
 
-  values.value=dict_data_read_(node->idx->dz,node->start_v ,node->end_v-node->start_v-1 , NULL,NULL );
-  values.N=node->v_N;
-  
-  values.words=xmalloc(sizeof(char*)*values.N);
-  values.defs=xmalloc(sizeof(char*)*values.N);
-  
-  char *ptr=values.value;
-  for(int j=0;j<values.N;j++,ptr++)
-    {
-      values.words[j] = *ptr ? ptr: (char *)key;
-      ptr+=strlen(ptr);
-    } 
-  
-  for(int j=0;j<values.N;j++,ptr++)
-    {
-      values.defs[j] = ptr;
-      ptr+=strlen(ptr);
-    } 
+  char *list=dict_data_read_(node->idx->dz,node->start_v ,node->end_v-node->start_v-1 , NULL,NULL );
+  values.cnt=node->v_N;
+  values.max_len=key_len;
 
+  char *ptr=list;
+  for(int j=0;j<values.cnt;j++,ptr++)
+    {
+      insert_sorted(&values,(struct string){key_len, *ptr ? ptr: (char *)key });
+      ptr+=strlen(ptr);
+    } 
   
+  free(list);
   return values;
 }
 
-static struct value_mm index_mm_search_node(struct index_mm_node *node, const char *key, int i)
+
+
+struct unziped {
+  char N;
+  char *value;
+};
+
+
+static struct unziped index_mm_search_node(struct index_mm_node *node, const char *key, int i)
 {
 	struct index_mm_node *child;
-	struct value_mm values={0,0,0,NULL,NULL,NULL};
+	struct unziped values={0,NULL};
 	
 	char ch;
 	int j;
@@ -1083,7 +1141,8 @@ static struct value_mm index_mm_search_node(struct index_mm_node *node, const ch
 		i += j;
 		
 		if (key[i] == '\0') {
-		  values=fetch_value(node, key);
+		  values.value=dict_data_read_(node->idx->dz,node->start_v ,node->end_v-node->start_v-1 , NULL,NULL );
+		  values.N=node->v_N;
 		  index_mm_free_node(node);
 		  return values;
 		}
@@ -1117,7 +1176,7 @@ extern int decode_articles(char *key,struct article **cards,int *cards_number, s
   struct index_mm_node *root;
   root = index_mm_readroot(index);
   
-  struct value_mm values=index_mm_search_node(root, (const char *)key_decompose, 0);
+  struct unziped values=index_mm_search_node(root, (const char *)key_decompose, 0);
 
   if (!values.N)
     {
@@ -1125,17 +1184,33 @@ extern int decode_articles(char *key,struct article **cards,int *cards_number, s
       return 1;
     }
 
+  int j=0;
+  char *ptr=values.value;
+  char *word=ptr;
+  char *word0=ptr;
   
-  int i=0;
-  for(;i<values.N&&strcmp(values.words[i],key);i++);
+  for(j=0;j<values.N;j++,ptr++)
+  	ptr+=strlen(ptr);
+  char *def=ptr;
+  char *def0=ptr;
+  for(j=0;j<values.N&&strcmp(word,key)&&strcmp((char*)key_decompose,key);j++,word++,def++)
+    {
+      word+=strlen(word);
+      def+=strlen(def);
+    }
+  
     
-  if(i==values.N)
-    i=0;
+  if(j==values.N)
+  {
+    def=def0;
+    word=word0;
+  };
+
 
   int C=0;
   size_t par[3]={0};
   struct article * current;
-  char *S=values.defs[i];
+  char *S=def;
   char *E;
   while(S!=NULL&&*S!='\0') {
     for(int j=0;j<3;j++)
@@ -1148,15 +1223,13 @@ extern int decode_articles(char *key,struct article **cards,int *cards_number, s
     current->dic=par[0];
     current->full_definition = NULL;
     current->definition=NULL;
-    current->word=xstrdup(values.words[i]);
+    current->word=xstrdup(word);
     current->start=par[1];
     current->size=par[2];
     C++;
   }
   *cards_number=C;
 
-  free(values.words);
-  free(values.defs);
   free(values.value);
   free(key_decompose);
 
@@ -1180,35 +1253,14 @@ extern char * word_fetch(struct dictionary * Dic, int start, int size)
   return definition;
   }
 
-struct string {
-  size_t len;
-  char *str;
-};
-
-struct search_results
-{
-  int *count;
-  struct string buf;
-  struct string *res;
-  size_t *max_len;
-  int max_results;
-};
 
 
-
-static int comp_len(const void *a1, const void *a2) {
-  const struct string *k1 = a1;
-  const  struct string *k2 = a2;
-  return k1->len-k2->len;
-}
-
-#define        MIN(a,b) (((a)<(b))?(a):(b))
-static void index_mm_search_all2(struct search_results *sr,struct index_mm_node *node, const struct string key, size_t i) 
+static void index_mm_search_all(struct string *buf,struct index_mm_node *node, const struct string key, size_t i,struct result_list *result) 
 {
   
   const int len=strlen(node->prefix);
-  strcpy(sr->buf.str +sr->buf.len,node->prefix);
-  sr->buf.len+=len;
+  strcpy(buf->str +buf->len,node->prefix);
+  buf->len+=len;
 
   char ch;
   for(int j=0;i<key.len&&(ch=node->prefix[j]);j++)
@@ -1220,51 +1272,16 @@ static void index_mm_search_all2(struct search_results *sr,struct index_mm_node 
     }
 
   
-  if(node->v_N&&*sr->max_len>sr->buf.len &&   i==key.len)
+  if(node->v_N&&(result->max_len>buf->len||result->cnt<result->max) &&   i==key.len)
     {
-      struct value_mm values=fetch_value(node, sr->buf.str);
-      
-      for(int j=0;j<node->v_N;j++)
-      	{
-      	  int k=0;
-      	  struct string r;
-
-      	  r.str = values.words[j];
-      	  r.len=strlen(r.str);
-
-	  
-      	  if(*sr->count<sr->max_results)
-      	    k=*sr->count;
-      	  else
-      	    {
-      	      qsort(sr->res, sr->max_results, sizeof(struct string), comp_len);
-
-      	      *sr->max_len=sr->res[sr->max_results-1].len;
-
-      	      for(k=sr->max_results-1;k>=0&&sr->res[k].len<r.len;k--);
-      	    }
-
-      	  if(k>=0)
-      	    {
-      	      strcpy(sr->res[k].str,r.str);
-      	      sr->res[k].len=r.len;
-      	    }
-	  
-      	  (*sr->count)++;
-	  
-      	}
-
-      free(values.words);
-      free(values.defs);
-      free(values.value);
-
-      
+      struct result_list new=fetch_value_list(node, buf->str);
+      combine_lists(result, &new);
     }
-  
-  if((*sr->count<sr->max_results)|| ( *sr->max_len>sr->buf.len))
+
+  if((result->cnt<result->max)|| ( result->max_len>buf->len))
     {
       struct index_mm_node *child;
-      struct search_results child_result;
+      struct string child_buf;
       int tempi;
       size_t j;
       
@@ -1280,9 +1297,9 @@ static void index_mm_search_all2(struct search_results *sr,struct index_mm_node 
 	  
 	  if(j==key.len)	    {
 	      child = index_mm_read_node(node->idx, node->children[k].offset); // redefine node from parent to child
-	      child_result=*sr;
-	      child_result.buf.str[child_result.buf.len++]=ch;
-	      index_mm_search_all2(&child_result,child,key,tempi);
+	      child_buf=*buf;
+	      child_buf.str[child_buf.len++]=ch;
+	      index_mm_search_all(&child_buf,child,key,tempi,result);
 	      }
 	}
     }
@@ -1292,7 +1309,7 @@ static void index_mm_search_all2(struct search_results *sr,struct index_mm_node 
 
 
 
-static void index_mm_search_prefix(struct index_mm_node *node, struct search_results *sr,const struct string key_f)
+static void index_mm_search_prefix(struct index_mm_node *node, struct string *buf,const struct string key_f,struct result_list *result)
 {
   
   struct index_mm_node *child;
@@ -1314,9 +1331,9 @@ static void index_mm_search_prefix(struct index_mm_node *node, struct search_res
     
     i += j;
     if (key[i] == '\0') {
-      sr->buf.len=i-j;   ////prefix will be included on the next step (see index_mm_search_all2)
-      strcpy(sr->buf.str,key);
-      index_mm_search_all2(sr,node, key_f,i);
+      buf->len=i-j;   ////prefix will be included on the next step (see index_mm_search_all)
+      strcpy(buf->str,key);
+      index_mm_search_all(buf,node, key_f,i,result);
 
       return ;
     }
@@ -1334,7 +1351,6 @@ static void index_mm_search_prefix(struct index_mm_node *node, struct search_res
 
 
 
-
 extern void look_for_a_word(struct index_mm *idx,char *word,int *art, struct article **Art, int is_prefix)
 {
   int i=0;
@@ -1345,56 +1361,47 @@ extern void look_for_a_word(struct index_mm *idx,char *word,int *art, struct art
     return ;
 
   char *key=(char *)converted;
-
   
-  struct search_results sr;
+  struct string buf;
   
   struct index_mm_node *node=index_mm_readroot(idx);
 
-  sr.buf.str=xmalloc(CHAR_BUFFER_SIZE*sizeof(char));
-  sr.buf.len=0;
+  buf.str=xmalloc(CHAR_BUFFER_SIZE*sizeof(char));
+  buf.len=0;
 
 
-  sr.max_results=20;
-  
-  sr.res=xmalloc(sr.max_results*sizeof(struct string));
-  for(i=0;i<sr.max_results;i++)
-    {
-      sr.res[i].str=xmalloc(CHAR_BUFFER_SIZE*sizeof(char));
-      sr.res[i].len=0;
-    }
-  int count=0;
-  sr.count=&count;
-
-
-  size_t max_len=SIZE_MAX;
-  sr.max_len=&max_len;
-
+  struct result_list result={NULL,20,0,SIZE_MAX};
   if(is_prefix)
-    index_mm_search_prefix(node, &sr, (struct string){strlen(key),key});
+    index_mm_search_prefix(node, &buf, (struct string){strlen(key),key},&result);
   else
-    index_mm_search_all2(&sr,node,(struct string){strlen(key),key},0); 
+    index_mm_search_all(&buf,node,(struct string){strlen(key),key},0,&result); 
 
-  
-  
-  *art=(count>sr.max_results)? sr.max_results : count;
 
-  qsort(sr.res, *art, sizeof(struct string), comp_len);
-  
-  
+  struct result_list__node *current=result.head;
+  struct result_list__node *temp;
+
+  *art=MIN(result.cnt,result.max);
   *Art=xmalloc(*art*sizeof(struct article));
 
   for(i=0;i<*art  ;i++)
     {
-      (*Art+i)->word=xstrdup(sr.res[i].str);
       (*Art+i)->definition=NULL;
       (*Art+i)->full_definition=NULL;
+      (*Art+i)->word=current->word.str;
+      temp=current->next;
+      free(current);
+      current=temp;
     }
-  free(sr.buf.str);
-  for(i=0;i<sr.max_results;i++)
-    free(sr.res[i].str);
-  free(sr.res);
+
+    while(current!=NULL)
+    {
+      temp=current->next;
+      free(current->word.str);
+      free(current);
+      current=temp;
+    }
+
+  free(buf.str);
   free(converted);
-  
    
 }
