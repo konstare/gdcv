@@ -1141,8 +1141,9 @@ static struct unziped index_mm_search_node(struct index_mm_node *node, const cha
 		i += j;
 		
 		if (key[i] == '\0') {
-		  values.value=dict_data_read_(node->idx->dz,node->start_v ,node->end_v-node->start_v-1 , NULL,NULL );
 		  values.N=node->v_N;
+		  if(node->v_N)
+		    values.value=dict_data_read_(node->idx->dz,node->start_v ,node->end_v-node->start_v-1 , NULL,NULL );
 		  index_mm_free_node(node);
 		  return values;
 		}

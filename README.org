@@ -1,13 +1,13 @@
 #+TITLE: gdcv - GoldenDict console version and emacs module
 
 * Description
-gdcv is a command-line interface for searching [[https://github.com/goldendict/goldendict][GoldenDict]] dictionaries. The program is a very rudimentary workaround to allow searching until an official command-line interface is available.
+gdcv is a command-line interface for searching [[https://github.com/goldendict/goldendict][GoldenDict]] dictionaries(*.dsl.dz). The program is a very rudimentary workaround to allow searching until an official command-line interface is available.
 
 As an example of a similar interface, [[https://github.com/goldendict/goldendict][GoldenDict]] has [[https://github.com/dohliam/gdcl][gdcl]] (Command-line interface for Goldendict), but for my setup it works really slow due to no pre-made index  for faster searching. 
 
 [[http://code.google.com/p/stardict-3/][StarDict]] has [[http://sdcv.sourceforge.net/][sdcv]] (StarDict Console Version), but it can only handle dictionaries in the StarDict format. For users of GoldenDict who have large collections of dictionaries in DSL format, converting and maintaining two parallel sets of dictionaries is not a practical solution.
 
-gdcv does not require an installation of GoldenDict. It creates index file of existing dictionaries in the GoldenDict directory (which can be configured) and after that can be  used to search through the collection of dictionaries. gdcv does not use GoldenDict's pre-made index files, it creates new index based. 
+gdcv does not require an installation of GoldenDict and does not use GoldenDict's pre-made index files, it creates new one.  
 
 The main catch is that gdcv is written in C by a person who has never programmed anything before.  It seems  the program  does not leak memory, but the software architecture  is horrible.
 
@@ -15,18 +15,17 @@ Please [[https://github.com/goldendict/goldendict/issues/37][vote]] for official
 
 * Features
 + Search a word in a dictionary
-+ Search a word by regular expression
++ Find words that contain a substring
 + Syntax highlighting
 + Extracting media files
-+ Emacs module
++ Emacs dynamic module, if necessary
 
 
 * Installation
 ** Requirements
 1. gcc or clang
-2. glibc>=2.30      
-3. zlib
-For Ubuntu 19.10:
+2. zlib
+For Ubuntu:
 #+BEGIN_SRC sh
 sudo apt install zlib1g-dev
 #+END_SRC
@@ -42,8 +41,7 @@ Put gdcv into a directory from the $PATH.
 ** Configuration
 *** Convert dictionaries from UTF-16 to UTF-8
 
-Usually GoldenDict dictionaries (DSL) comes in UTF-16. It is above my pay-grade to deal with it,  all dictionaries should be converted to UTF-8. It is not the problem for GoldenDict as it supports both UTF-16 and UTF-8.
-
+Usually GoldenDict dictionaries (DSL) comes in UTF-16. It is above my pay-grade to deal with it,  all dictionaries should be converted to UTF-8. It is not the problem for GoldenDict as it supports both UTF-16 and UTF-8. Moreover dictionaries in UTF-8 take 20% less space 
 
 To convert dictionaries dictzip and dos2unix are needed.
 
@@ -58,7 +56,7 @@ find . -name '*.ann' -exec  dos2unix --add-bom -f {} \;
 *** Create Index
 
 #+BEGIN_SRC sh
-gdcv -i /path/to/directory/in/DSL/format
+gdcv -i /path/to/directory/in/DSL/format /path/to/second/directory/in/DSL/format
 #+END_SRC
 
 Two index files will be saved in the directory:
@@ -144,6 +142,9 @@ The gdcv-mode goes with simple ivy interface *ivy-gdcv*, which can be used to se
 
 
 * Useful links
+**** Examples of dictionaries in DSL
++ [[https://github.com/konstare/WordNet][WordNet]]   English-English
++ [[https://github.com/open-dsl-dict/wiktionary-dict][Bilingual dictionaries from Wiktionary]]
 **** Tools for creating DSL-format dictionaries
 https://github.com/dohliam/dsl-tools
 **** Command-line interface for Goldendict dictionaries written in ruby

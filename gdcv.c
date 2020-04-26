@@ -117,7 +117,6 @@ int main(int argc, char *argv[])
   mkdir(index_path, 0755); 
    
 
-
   if(arguments.to_index)
     {
       int N=0;
