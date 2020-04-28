@@ -150,7 +150,10 @@ https://github.com/dohliam/dsl-tools
 **** Command-line interface for Goldendict dictionaries written in ruby
 https://github.com/dohliam/gdcl
 **** Lingvo dictionaries decompiler
-https://github.com/nongeneric/lsd2dsl
++ https://github.com/nongeneric/lsd2dsl   C implementation
+
++ https://github.com/sv99/lsdreader       python implementation
+
 **** A tool for converting dictionary files aka glossaries with various formats for different dictionary applications
 https://github.com/ilius/pyglossary
 

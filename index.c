@@ -508,7 +508,7 @@ extern struct root_ index_directories (char **dir_list)
 #define TestBit(A,k)    ( A & (1 << ((unsigned char)k/32)) )
 
 
-static uint32_t index_add_grand_childrens(struct index_node *node)
+static unsigned char index_add_grand_childrens(struct index_node *node)
 {
   unsigned char bits_n=0;
   unsigned char bits_t=0;
