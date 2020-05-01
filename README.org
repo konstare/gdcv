@@ -41,7 +41,7 @@ Put gdcv into a directory from the $PATH.
 ** Configuration
 *** Convert dictionaries from UTF-16 to UTF-8
 
-Usually GoldenDict dictionaries (DSL) comes in UTF-16. It is above my pay-grade to deal with it,  all dictionaries should be converted to UTF-8. It is not the problem for GoldenDict as it supports both UTF-16 and UTF-8. Moreover dictionaries in UTF-8 take 20% less space 
+Sometimes GoldenDict dictionaries (DSL) comes in UTF-16. It is above my pay-grade to deal with it,  all dictionaries should be converted to UTF-8. It is not the problem for GoldenDict as it supports both UTF-16 and UTF-8. Moreover dictionaries in UTF-8 take 20% less space 
 
 To convert dictionaries dictzip and dos2unix are needed.
 
@@ -143,8 +143,9 @@ The gdcv-mode goes with simple ivy interface *ivy-gdcv*, which can be used to se
 
 * Useful links
 **** Examples of dictionaries in DSL
-+ [[https://github.com/konstare/WordNet][WordNet]]   English-English
++ [[https://github.com/konstare/Dictionaries][ Webster and WordNet]]   English-English
 + [[https://github.com/open-dsl-dict/wiktionary-dict][Bilingual dictionaries from Wiktionary]]
++ [[http://dadako.narod.ru/paperpoe.htm][DaDaKo]] Dictionaries for all languages ( (russian website)
 **** Tools for creating DSL-format dictionaries
 https://github.com/dohliam/dsl-tools
 **** Command-line interface for Goldendict dictionaries written in ruby
