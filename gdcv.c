@@ -25,6 +25,7 @@ static struct argp_option options[] = {
 				       {"index",   'i', 0,  0, "Index dictionary files in the chosen directory" ,0},
 				       {"color",   'c', "THEME",  0, "The color theme of the output: default, decolorized, full" ,0},
 				       {"unzip",   'u', "DIRECTORY",  0, "Unzip resource files" ,0},
+				       {"zip",   'z', 0,  0, "zip dictionary file in dsl format" ,0},
 				       { 0 }
 };
 
@@ -35,6 +36,8 @@ struct arguments_
   int to_index;
   char **index_path;
   int color;
+  int to_zip;
+  char **filename;
 };
 
 
@@ -43,6 +46,9 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
   struct arguments_ *arguments = state->input;
   switch (key)
     {
+    case 'z':
+      arguments->to_zip = 1;
+      break;
     case 'u':
       arguments->unzip = arg;
       break;
@@ -74,6 +80,11 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 	  arguments->index_path = &state->argv[state->next-1];
 	  state->next = state->argc;
 	}
+      else if(arguments->to_zip)
+	{
+	  arguments->filename = &state->argv[state->next-1];
+	  state->next = state->argc;
+	}
       else
 	arguments->word=arg;
       break;
@@ -91,12 +102,11 @@ static struct argp argp = { options, parse_opt, args_doc, doc , 0, 0, 0 };
 
 
 
-void render_cli(struct dictionary D,struct format_ *format,int color,char *unzip);
 
 
 int main(int argc, char *argv[])  
 {
-  struct arguments_ arguments={"","",0,NULL,0};
+  struct arguments_ arguments={"","",0,NULL,0,0,NULL};
 
   argp_parse (&argp, argc, argv, 0, 0, &arguments);
 
@@ -167,6 +177,36 @@ int main(int argc, char *argv[])
       index_destroy(index);
       root_destroy(D);
     }
+  else if(arguments.to_zip)
+    {
+      FILE *   fd;   
+      char *write_to_file;
+      char *temp_path;
+      for(int i=0;arguments.filename[i];i++)
+	{
+	  temp_path=realpath(arguments.filename[i], NULL);
+	  
+	  if(!temp_path)
+	    printf("The file %s does not exist\n",arguments.filename[i]);
+	  else
+	    {
+	      
+	      fd = fopen( temp_path, "rb" );
+	      if(fd!=NULL)
+		{
+		  xasprintf(&write_to_file, "%s.dz", temp_path);
+		  dict_data_zip( fd, write_to_file);
+		  free(write_to_file);
+		  fclose(fd);
+		}
+	      else
+		printf("The file %s cannot be opened",temp_path);
+
+	      free(temp_path);
+	    }
+	  
+	}
+    }
   else{
     struct index_mm *index;
     index=index_mm_open(index_path);
@@ -194,7 +234,9 @@ int main(int argc, char *argv[])
 		struct format_ format; 
 		format.tag=NULL; 
 		strip_tags(Art[i].full_definition,&format);
-		render_cli(*Dic, &format,arguments.color,arguments.unzip);
+		render_cli(*Dic, &format,arguments.color);
+		if(strcmp(arguments.unzip,"")&&Dic->data[RESOURCES]!=NULL&&strcmp(Dic->data[RESOURCES],""))
+		    unzip_resources(&format, arguments.unzip, Dic->data[RESOURCES]);
 
 		free(Art[i].full_definition);
 		free(Art[i].word);

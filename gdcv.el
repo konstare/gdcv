@@ -113,8 +113,7 @@
   	       (start (get-text-property  p1 'Start))
   	       (end (get-text-property  p1 'End))
 	       (resources (get-text-property  p1 'Resources))
-	       (list-of-resources nil)
-  	       (data (when dic (gdcv-word-fetch gdcv-db dic start end ))) 
+  	       (data (when dic (gdcv-word-fetch gdcv-db dic start end (file-name-as-directory gdcv-media-temp-directory) ))) 
 	       (article  (car data))
 	       )
 	  (forward-line)
@@ -151,8 +150,6 @@
 		(add-face-text-property S E '(:slant italic :weight bold :foreground "red") t article))
 	       ((and (equal type 17) P resources)
 
-		(setq list-of-resources (append list-of-resources (list P)))
-
 		(setq P (concat (file-name-as-directory gdcv-media-temp-directory) P))
 
 		(when (string-match-p gdcv-image-regex-alist P)		  
@@ -165,10 +162,6 @@
 					    (list 'display gdcv-media-icon))
 				       article)))
 	       (t ))))
-	  (when list-of-resources     (apply 'start-process
-					     (append (list "" nil "unzip" "-qqju" resources)
-						     list-of-resources
-						     (list  "-d" gdcv-media-temp-directory))))
 	  (insert article)  	  
 	  )))
     (goto-char p1))

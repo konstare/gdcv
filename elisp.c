@@ -223,6 +223,11 @@ word_from_dictionary(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
     int end = env->extract_integer(env, args[3]);
     NON_LOCAL_EXIT_CHECK;
 
+    char *path_unzip;
+    if (extract_string_arg(env, args[4], &path_unzip)) {
+      return SYM( "nil");
+    }
+
 
     struct dictionary *Dic=get_dictionary(index->Dic  , index->N, dic);
     
@@ -233,7 +238,13 @@ word_from_dictionary(emacs_env *env, ptrdiff_t n, emacs_value *args, void *ptr)
 
     strip_tags(definition,&format);
     emacs_value result=render_emacs(env,&format);
+
+    if(strcmp(path_unzip,"")&&Dic->data[RESOURCES]!=NULL&&strcmp(Dic->data[RESOURCES],""))
+      unzip_resources(&format, path_unzip, Dic->data[RESOURCES]);
+
+    
     free_format(&format);
+    free(path_unzip);
     free(definition);
     return result;
 }
@@ -331,7 +342,7 @@ emacs_module_init(struct emacs_runtime *ert)
     bind_func(env,"gdcv-database-close",1,1,close_database, "Close database with given pointer");
     bind_func(env,"gdcv-look-word",3,3,word_lookup, "Look for words similar to given word");
     bind_func(env,"gdcv-word-defs",2,2,word_defs, "List of all dictionaries with current word");
-    bind_func(env,"gdcv-word-fetch",4,4,word_from_dictionary, "Return article from specific dictionary ");
+    bind_func(env,"gdcv-word-fetch",5,5,word_from_dictionary, "Return article from specific dictionary ");
 
     emacs_value provide = SYM( "provide");    
     emacs_value gdcv[] = {SYM( "gdcv-elisp")};

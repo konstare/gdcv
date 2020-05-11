@@ -81,7 +81,7 @@ static char *ANSI[139] = {"\x1B[38:5:189m","\x1B[38:5:189m","\x1B[38:5:51m" ,"\x
 			  "\x1B[38:5:182m","\x1B[38:5:203m","\x1B[38:5:80m" ,"\x1B[38:5:176m","\x1B[38:5:187m",
 			  "\x1B[38:5:231m","\x1B[38:5:188m","\x1B[38:5:226m","\x1B[38:5:148m" };
 
-extern void render_cli(struct dictionary D,struct format_ *format,int color,char *unzip)
+extern void render_cli(struct dictionary D,struct format_ *format,int color)
 {
   printf("\n%s%s%s\n", (color<2) ? CLI_DIC_TITLE : "", D.data[NAME], (color<2) ? CLI_RESET : "");
  ENTRY *found_item;
@@ -130,8 +130,6 @@ extern void render_cli(struct dictionary D,struct format_ *format,int color,char
       CLITagNames[i]="";
  
 
-  char *system_call;
-  char list_of_media_files[FILENAME_MAX];
     
   TAG opened[N_TAG]={0};
   size_t skip=0;
@@ -142,7 +140,6 @@ extern void render_cli(struct dictionary D,struct format_ *format,int color,char
   char *prop;
   temp_color="";
 
-  strcpy(list_of_media_files, "");
 
   for(int i=0; i<format->N;i++)
     {
@@ -192,34 +189,13 @@ extern void render_cli(struct dictionary D,struct format_ *format,int color,char
 	      else
 		printf("%s",CLITagNames[type] ) ;
 
-	      if(type==MEDIA&&D.data[RESOURCES]!=NULL&&strcmp(unzip,""))
-		{
-		  strcat(list_of_media_files,prop);
-		  strcat(list_of_media_files," ");
-		}
+
 	    }
 	}
     }
 
 
-  if (list_of_media_files[0] != '\0')
-    {
-      int rc=0;
-      rc=asprintf(&system_call, "unzip -qqju '%s' %s -d %s", D.data[RESOURCES],list_of_media_files,unzip);
-      if(rc<0)
-	{
-	  printf("asprintf failed");
-	  exit(EXIT_FAILURE);
-	}
-      rc=system(system_call);
-      if(rc<0)
-	{
-	  printf("system call failed");
-	  exit(EXIT_FAILURE);
-	}
 
-      free(system_call);
-    }
 
   if(color<2)
     hdestroy();
@@ -443,4 +419,45 @@ extern void free_format(struct format_ *format){
   
   free(format->tag);
   free(format->string);
+}
+
+extern int unzip_resources(struct format_ *format, char *path_name_, const char *zipfilename)
+{
+  mkdir(path_name_, 0755); 
+  char *path_name = realpath(path_name_, NULL);
+
+  char *files[512]={NULL};
+  int fn=0;
+  int fn_i=0;
+  int j;
+  files[fn_i++]="unzip";
+  files[fn_i++]="-qqju";
+  files[fn_i++]=(char*)zipfilename;
+  files[fn_i++]="-d";
+  files[fn_i++]=path_name;
+  fn=fn_i;
+  
+  for(int i=0; i<format->N;i++)
+    if(format->tag[i].type==MEDIA&&format->tag[i].open&&format->tag[i].properties)
+      {
+	for(j=fn_i;j<fn&&strcmp(format->tag[i].properties, files[j]); j++);
+	  
+	if(j==fn)
+	  files[fn++]=format->tag[i].properties;
+      }
+  
+
+  if (fn>fn_i)
+    {
+      pid_t pid;
+      pid = fork();
+      if(pid == 0)
+	{
+	  execvp("unzip",files);
+	  return -1;
+	}
+    }
+  
+  free(path_name);
+  return 0;
 }

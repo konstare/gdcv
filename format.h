@@ -35,7 +35,9 @@ struct format_
   char *string;
 };
 
-extern void render_cli(struct dictionary D,struct format_ *format,int color,char *unzip);
+extern void render_cli(struct dictionary D,struct format_ *format,int color);
+
+extern int unzip_resources(struct format_ *format, char *path_name, const char *zipfilename);
 
 extern void show_dictionaries(struct root_ D);
 
