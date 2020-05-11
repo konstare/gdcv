@@ -87,13 +87,16 @@ gdcv cat --unzip=/tmp/
 
 It is easy to create a dictionary in GoldenDict format. Essentially the format  is specified [[http://lingvo.helpmax.net/en/troubleshooting/dsl-compiler/your-first-dsl-dictionary/][here]], except that @ tag is not supported. One can use typical dictionary in  [[https://github.com/Tvangeste/SampleDSL][DSL format]].
 The dsl file has to be compressed in [[https://linux.die.net/man/1/dictzip][dictzip format]]  and moved to GoldenDict directory.
+
 #+BEGIN_SRC sh
 gdcv -z dictionary.dsl
-#+END_SCR
+#+END_SRC
+
 Note, that the result dsl.dz file can be uncompressed back with gzip:
+
 #+BEGIN_SRC sh
 gunzip -S .dz dictionary.dsl.dz
-#+END_SCR
+#+END_SRC
 
 
 * Emacs module
