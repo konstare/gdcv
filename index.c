@@ -319,10 +319,10 @@ extern struct root_ index_directories (char **dir_list)
   FTSENT *f;
 
   const char *endings[]={".dsl.dz.files.zip",".dsl.files.zip",".files.zip","_abrv.dsl.dz", "_abrv.dsl",".dsl.dz",".bmp"};
-  
-  tree = fts_open(dir_list, FTS_LOGICAL | FTS_NOSTAT, NULL);
-  CHECK_PTR(tree)
 
+  tree = fts_open(dir_list, FTS_LOGICAL | FTS_NOSTAT, NULL);
+  
+  CHECK_PTR(tree)
     while ((f = fts_read(tree)))
       {
 	if(f->fts_info== FTS_F&&fnmatch("+(*.dz|*.files.zip|*_abrv.dsl|*.bmp)", f->fts_name, FNM_CASEFOLD|FNM_EXTMATCH) == 0)

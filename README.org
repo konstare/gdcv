@@ -106,7 +106,7 @@ For many years I have  successfully used sdcv-mode and [[http://sdcv.sourceforge
 **** compile and create index files.
 
 #+BEGIN_SRC sh
-make emacs-module
+make gdcv emacs-module
 gdcv -i /path/to/directory/in/DSL/format
 #+END_SRC
 

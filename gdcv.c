@@ -9,6 +9,7 @@
 #include "index.h"
 #include "format.h"
 
+
 const char *argp_program_version = "gdcv 0.1";
 const char *argp_program_bug_address =  "<somewhere>";
 
@@ -146,9 +147,9 @@ int main(int argc, char *argv[])
 	    }
 	  
 	}
-
-      if(paths==NULL)
-	  exit(EXIT_SUCCESS);
+      //fts_open demands the array must be terminated by a NULL pointer.
+      paths= xrealloc(paths, (N+1)*sizeof(char *));
+      paths[N]=NULL;
 
       struct root_ D = index_directories (paths);
 
