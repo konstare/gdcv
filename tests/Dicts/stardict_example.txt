@@ -1,0 +1,6 @@
+apple|apples
+the meaning of apple
+
+2dimensional|2dimensionale|2dimensionaler|2dimensionales|2dimensionalem|2dimensionalen
+two dimensional's meaning<br>the sencond line.
+

@@ -2,7 +2,7 @@
  * GoldenDict program.
  */
 
-/* data.h -- 
+/* data.h --
  * Created: Sat Mar 15 18:04:25 2003 by Aleksey Cheusov <vle@gmx.net>
  * Copyright 1994-2003 Rickard E. Faith (faith@dict.org)
  *
@@ -32,70 +32,28 @@
 #endif
 
 #ifdef __cplusplus
-extern "C" 
-{
+extern "C" {
 #endif
-
 
 /* Excerpts from defs.h */
 
 #define DICT_CACHE_SIZE 5
 
-typedef struct dictCache {
-   int           chunk;
-   char          *inBuffer;
-   int           stamp;
-   int           count;
-} dictCache;
-
-typedef struct dictData {
-
-   FILE *        fd;		/* file descriptor */
-
-   unsigned long size;		/* size of file */
-   
-   int           type;
-   const char    *filename;
-   z_stream      zStream;
-   int           initialized;
-
-   int           headerLength;
-   int           method;
-   int           flags;
-   time_t        mtime;
-   int           extraFlags;
-   int           os;
-   int           version;
-   int           chunkLength;
-   int           chunkCount;
-   int           *chunks;
-   unsigned long *offsets;	/* Sum-scan of chunks. */
-   const char    *origFilename;
-   const char    *comment;
-   unsigned long crc;
-   unsigned long length;
-   unsigned long compressedLength;
-   dictCache     cache[DICT_CACHE_SIZE];
-} dictData;
-
+typedef struct dictData dictData;
 
 /* initialize .data file */
-extern dictData *dict_data_open (
-   const char *filename, int computeCRC);
+extern dictData *dict_data_open(const char *filename, int computeCRC);
 /* */
-extern void dict_data_close (
-   dictData *data);
+extern void dict_data_close(dictData *data);
 
-extern char *dict_data_read_ (
-   dictData *data,
-   unsigned long start, unsigned long size,
-   const char *preFilter,
-   const char *postFilter );
+extern char *dict_data_read_(dictData *data, unsigned long start,
+                             unsigned long size, const char *preFilter,
+                             const char *postFilter);
 
-  extern  int dict_data_zip( FILE *inFilename, const char *outFilename);
-  
+extern int dict_data_zip(FILE *inFilename, const char *outFilename);
+
 #ifdef __cplusplus
-}  /* end extern "C" */
+} /* end extern "C" */
 #endif
 
 #endif /* _DICTZIP_H_ */

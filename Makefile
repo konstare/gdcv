@@ -1,27 +1,27 @@
 CC=gcc
-#clang
-EMACS = emacs
-CFLAGS=$(pkg-config --cflags  zlib) -Wall  -Wextra  -pedantic
+CFLAGS=$(pkg-config --cflags  zlib) -Wall  -Wextra  -pedantic -Wformat-security -Wfloat-equal -Wshadow -Wwrite-strings #-Wconversion
 OPTIMISATIONS= -O2  -march=native
 LDLIBS=$(shell pkg-config --libs  zlib)
-DEBUG=-fsanitize=address -O0 -g3 -ggdb -static-libasan 
+DEBUG= -O0 -g3 -ggdb -static-libasan  -fsanitize=address
+DEBUG_VALGRIND= -O0 -g3 -ggdb -static-libasan
+DEBUG_GPROF= -O0 -g3 -ggdb
 
 .PHONY : test
 
-gdcv: gdcv.c dictzip.c utils.c format.c index.c utfproc/utf8proc.c 
+gdcv: gdcv.c utils.c dictzip.c utf8proc/utf8proc.c stardict.c dictd.c dsl.c dictionaries.c index.c cvec.c
 	$(CC)  -o $@ $^ $(CFLAGS) $(LDLIBS) $(OPTIMISATIONS)
 
-emacs-module: gdcv-elisp.so gdcv.elc
-
-gdcv-elisp.so: elisp.c dictzip.c utils.c format.c index.c utfproc/utf8proc.c
-	$(CC) -shared -o $@ -fPIC $^ $(CFLAGS) $(LDLIBS)   $(OPTIMISATIONS)
-
-gdcv_debug: gdcv.c dictzip.c utils.c format.c index.c utfproc/utf8proc.c 
+gdcv_debug: gdcv.c  utils.c dictzip.c utf8proc/utf8proc.c  stardict.c dictd.c dsl.c dictionaries.c index.c cvec.c
 	$(CC)  -o $@ $^ $(CFLAGS) $(LDLIBS) $(DEBUG)
 
-clean:
-	rm -f  gdcv gdcv-elisp.so gdcv_debug gdcv.elc
+gdcv_valgrind: gdcv.c  utils.c dictzip.c utf8proc/utf8proc.c  stardict.c dictd.c dsl.c dictionaries.c index.c cvec.c
+	$(CC)  -o $@ $^ $(CFLAGS) $(LDLIBS) $(DEBUG_VALGRIND)
+#	G_SLICE=always-malloc G_DEBUG=gc-friendly  valgrind -v --tool=memcheck --leak-check=full --num-callers=40 --log-file=valgrind.log --track-origins=yes ./$@ ../Dicts
 
-.SUFFIXES: .el .elc
-.el.elc:
-	$(EMACS) -batch -Q -L . -f batch-byte-compile $<
+gdcv_gprof: gdcv.c  utils.c dictzip.c utf8proc/utf8proc.c  stardict.c dictd.c dsl.c dictionaries.c index.c cvec.c
+	$(CC)  -o $@ $^ $(CFLAGS) $(LDLIBS) $(DEBUG_GRPROF)
+#	./$@ ../Dicts
+#	gprof  $@ gmon.out > prof_output
+
+clean:
+	rm -f  gdcv  gdcv_debug gdcv_valgrind gdcv_gprof

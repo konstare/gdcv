@@ -1,0 +1,17 @@
+This is an example of a dictionary in dictd format in txt
+To format this to dictd format run the command:
+
+dictfmt --utf8 -s "Dictd example dictionary" -j dictd_example < dictd_example.txt
+and after this
+dictzip dictd_example.dict
+
+=============================================================
+
+:empty definition:
+
+:cat: some animal
+
+:animal: something which is not a plant
+
+:plant: something which is not a cat
+
