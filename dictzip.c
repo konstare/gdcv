@@ -714,8 +714,7 @@ void dict_data_close(dictData *header) {
   xfree(header);
 }
 
-char *dict_data_read_(dictData *h, unsigned long start, unsigned long size,
-                      const char *preFilter, const char *postFilter) {
+char *dict_data_read_(dictData *h, unsigned long start, unsigned long size,  const char *preFilter, const char *postFilter) {
   char *buffer, *pt;
   unsigned long end;
   int count;
@@ -868,6 +867,5 @@ char *dict_data_read_(dictData *h, unsigned long start, unsigned long size,
     err_fatal(__func__, "Cannot read unknown file type\n");
     break;
   }
-
   return buffer;
 }

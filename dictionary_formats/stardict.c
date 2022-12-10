@@ -1,13 +1,16 @@
-#include "dictionaries.h"
-#include "utils.h"
+#include "../dictionaries.h"
+#include "../utils.h"
 #include <arpa/inet.h> //ntohl
+#include <inttypes.h>
+#include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 
 typedef struct {
-  int filesize;
-  int offsetbytes;
-  int wordcount;
-  int current;
+  size_t filesize;
+  uint8_t offsetbytes;
+  size_t wordcount;
+  uint current;
   char *path;
   char *file;
   char **words;
@@ -46,9 +49,9 @@ void stardict_parse_ifo(StarDict *self) {
       if (strstr(buf, "sametypesequence"))
         self->sametypesequence = subString[0];
       if (strstr(buf, "wordcount") && !strstr(buf, "synwordcount"))
-        self->idx.wordcount = atoi(subString);
+        self->idx.wordcount = strtoul(subString,NULL,10);
       if (strstr(buf, "idxfilesize"))
-        self->idx.filesize = atoi(subString);
+        self->idx.filesize = strtoul(subString,NULL,10);
       if (strstr(buf, "idxoffsetbits"))
         if (atoi(buf) == 64)
           self->idx.offsetbytes = 8;
@@ -60,17 +63,17 @@ void stardict_parse_ifo(StarDict *self) {
 void stardict_dictionary_open(Dictionary *interface) {
   StarDict *stardict = CONTAINER_OF(interface, StarDict, interface);
   gzFile file = gzopen(stardict->idx.path, "rb");
-  int idxfilesize = stardict->idx.filesize * (sizeof *stardict->idx.file);
+  size_t idxfilesize = stardict->idx.filesize * (sizeof *stardict->idx.file);
   stardict->idx.file = xmalloc(idxfilesize);
-  const int len = gzread(file, stardict->idx.file, idxfilesize);
+  const int len = gzread(file, stardict->idx.file, (uint)idxfilesize);
   gzclose(file);
-  if (len < 0 || len != idxfilesize) {
+  if (len < 0 || (uint)len != idxfilesize) {
     stardict->interface.to_index = 0;
   }
   stardict->idx.words =
       xmalloc(stardict->idx.wordcount * (sizeof *stardict->idx.words));
   char *p = stardict->idx.file;
-  for (int i = 0; i < stardict->idx.wordcount; i++) {
+  for (uint i = 0; i < stardict->idx.wordcount; i++) {
     stardict->idx.words[i] = p;
     p += strlen(p) + 1 + 2 * sizeof(uint32_t);
   };
@@ -86,48 +89,46 @@ void stardict_fill_word(gzFile handle, char *p) {
     p++;
 }
 
-uint stardict_dictionary_read_word(StarDict *self, WordDefinition *result,
-                                   int idx) {
+bool stardict_dictionary_read_word(StarDict *self, WordDefinition *result,
+                                   uint idx) {
   if (idx >= self->idx.wordcount) {
-    return 0;
+    return false;
   }
   char *p = self->idx.words[idx];
   xstrcpy(&result->word, p);
   p += strlen(p) + 1;
-  result->offset = ntohl(*(uint32_t *)p);
-  result->size = ntohl(*(uint32_t *)(p + sizeof(uint32_t)));
-  return 1;
+  result->def.offset = ntohl(*(uint32_t *)p);
+  result->def.size = ntohl(*(uint32_t *)(p + sizeof(uint32_t)));
+  return true;
 }
 
-uint stardict_syn_next_word(StarDict *stardict, WordDefinition *result) {
+bool stardict_syn_next_word(StarDict *stardict, WordDefinition *result) {
   WordDefinition tmp_result = worddefinition_init();
   unsigned char offset[sizeof(uint32_t)] = {0};
   char word[MAX_WORD_LENGHT];
   stardict_fill_word(stardict->handle_syn, word);
   if (gzread(stardict->handle_syn, offset, sizeof(uint32_t)) !=
       sizeof(uint32_t))
-    return 0;
-  uint pos = ntohl(*(int32_t *)&offset);
-  uint rc = stardict_dictionary_read_word(stardict, &tmp_result, pos);
+    return false;
+  uint pos = ntohl(*(uint32_t *)&offset);
+  bool rc = stardict_dictionary_read_word(stardict, &tmp_result, pos);
   worddefinition_free(&tmp_result);
-  if (rc != 1)
-    return 0;
+  if (rc == false)
+    return rc;
   xstrcpy(&result->word, word);
-  result->offset = tmp_result.offset;
-  result->size = tmp_result.size;
-  return 1;
+  result->def.offset = tmp_result.def.offset;
+  result->def.size = tmp_result.def.size;
+  return true;
 }
 
-uint stardict_dictionary_next_word(Dictionary *interface,
+bool stardict_dictionary_next_word(Dictionary *interface,
                                    WordDefinition *result) {
   StarDict *stardict = CONTAINER_OF(interface, StarDict, interface);
-  uint rc =
+  bool rc =
       stardict_dictionary_read_word(stardict, result, stardict->idx.current++);
-  if (rc != 1 && stardict->syn)
+  if (rc == false && stardict->syn)
     return stardict_syn_next_word(stardict, result);
-  else if (rc != 1)
-    return 0;
-  return 1;
+  return rc;
 }
 
 void stardict_dictionary_close(Dictionary *interface) {
@@ -150,7 +151,7 @@ void stardict_dictionary_free(Dictionary *interface) {
 
 void stardict_save(Dictionary *interface, FILE *out) {
   StarDict *stardict = CONTAINER_OF(interface, StarDict, interface);
-  write_long(interface->id, out);
+  write_short(interface->id, out);
   fputc(stardict->sametypesequence, out);
   char *list[] = {interface->name, stardict->ifo, stardict->syn, stardict->dict};
   write_strings(out, ARRAY_LENGTH(list), list);
@@ -183,7 +184,7 @@ Dictionary *stardict_create(const char *filename) {
   stardict_parse_ifo(stardict);
 
   if (stardict->dict && interface->name && stardict->idx.offsetbytes == 4)
-    interface->to_index = 1;
+    interface->to_index = true;
   return interface;
 }
 
@@ -198,8 +199,8 @@ Dictionary *stardict_load(void **p, const char *filename) {
                   stardict_dictionary_close, stardict_dictionary_free,
                   dictionary_get_definition);
 
-  interface->to_index = 1;
-  interface->id=read_long_mm(p);
+  interface->to_index = true;
+  interface->id=read_short_mm(p);
   stardict->sametypesequence=read_char_mm(p);
   stardict->idx.file = NULL;
   stardict->idx.path = NULL;

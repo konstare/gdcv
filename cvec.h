@@ -10,11 +10,11 @@
                |
                 ` -> Pointer returned to the user.
  */
-#ifndef CVEC_HDR
-#define CVEC_HDR
+#pragma once
 #include <string.h>
 #include <stdlib.h>
 
+#define vector(T) T*
 
 typedef struct {
     size_t size;
@@ -25,15 +25,17 @@ typedef struct {
   ((void)vec_grow(((void **)&(VECTOR)), (SIZE), sizeof(*(VECTOR))) )
 
 
-/* Resize [VECTOR] to accomodate [SIZE] more elements */
-#define VECTOR_RESIZE(VECTOR, SIZE) \
-    (VECTOR_TRY_GROW((VECTOR), (SIZE)), VECTOR_META(VECTOR)->size += (SIZE), \
-        &(VECTOR)[VECTOR_META(VECTOR)->size - (SIZE)])
 
 /* Get the metadata block for [VECTOR] */
 #define VECTOR_META(VECTOR) \
     ((vector_t *)(((unsigned char *)(VECTOR)) - sizeof(vector_t)))
 
+/* Resize [VECTOR] to accomodate [SIZE] more elements */
+#define VECTOR_RESIZE(VECTOR, SIZE) \
+    (VECTOR_TRY_GROW((VECTOR), (SIZE)), VECTOR_META(VECTOR)->size += (SIZE), \
+        &(VECTOR)[VECTOR_META(VECTOR)->size - (SIZE)])
+
+  
 /* Deletes [VECTOR] and sets it to NULL */
 #define VECTOR_FREE(VECTOR) \
     ((void)((VECTOR) ? (vec_delete((void *)(VECTOR)), (VECTOR) = NULL) : 0))
@@ -56,4 +58,3 @@ typedef struct {
 
 void vec_grow(void **vector, size_t more, size_t type_size);
 void vec_delete(void *vector);
-#endif

@@ -1,5 +1,4 @@
-#ifndef UTILS_H
-#define UTILS_H
+#pragma once
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h> //malloc, realloc, free, size_t, NULL, exit, EXIT_FAILURE , EXIT_SUCCESS, system
@@ -33,24 +32,25 @@ void xstrcpy(char **s1, const char *s2);
 void combine_full_path(char *result, const char *path, const char *file);
 uint check_if_file_exist(const char *filename);
 
-typedef struct RealPaths {
-  char **dirs;
-  char **not_exist;
-} RealPaths;
+
+typedef struct RealPaths_ *RealPaths;
 
 extern void realpath_print_not_exist(RealPaths self, void (*print_function)(const char *));
 void realpath_free(RealPaths self);
 RealPaths realpath_init(int argc, const char **argv);
+char **realpath_get_dirs(RealPaths self);
+char **realpath_get_not_exist(RealPaths self);
+
+
 
 void write_string(FILE *out, const char *str);
-void write_strings(FILE *out, uint len, char *list[]);
+void write_strings(FILE *out, const size_t, char * const list[]);
 void write_long(const uint32_t number, FILE *out);
 void write_short(const uint16_t number, FILE *out);
 
 uint16_t read_short_mm(void **p);
 uint32_t read_long_mm(void **p);
-uint8_t read_char_mm(void **p);
+char read_char_mm(void **p);
 const char *read_string_mm(void **p);
-void read_strings_mm(void **p, size_t len, char** const list[]);
+void read_strings_mm(void **p, const size_t len, char** const list[]);
   
-#endif

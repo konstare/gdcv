@@ -1,6 +1,6 @@
-#include "dictionaries.h"
-#include "utils.h"
-#include "cvec.h"
+#include "../dictionaries.h"
+#include "../utils.h"
+#include "../cvec.h"
 #include <stddef.h> //size_t
 #include <stdint.h>
 #include <stdio.h>
@@ -11,11 +11,11 @@
 int UTF_BOM_SIZE = 3;
 
 typedef struct {
-  char **synonyms;
+  char **synonyms; //VECTOR
   char *new_word;
-  uint offset_new_word;
-  uint offset;
-  uint size;
+  size_t offset_new_word;
+  size_t offset;
+  size_t size;
 } DslParsingState;
 
 void dsl_clean_word(char *str) {
@@ -79,35 +79,38 @@ static void dsl_dictionary_open(Dictionary *interface) {
   gzseek(dsl->handle, UTF_BOM_SIZE, SEEK_SET);
 }
 
-static inline int is_string_empty(const char c) {
+static inline bool is_string_empty(const char c) {
   return  '\n' == c ||  '\r' == c ||  '#' == c;
 }
 
-static inline int is_definition(const  char c) { return '\t' == c || ' ' == c; }
+static inline bool is_definition(const  char c) { return '\t' == c || ' ' == c; }
 
-static inline int is_word(const  char c) {
+static inline bool is_word(const  char c) {
   return !(is_string_empty(c) || is_definition(c));
 }
 
 static void dsl_return_synonyms(DslParsingState *parse,
                                 WordDefinition *result) {
   dsl_parsing_state_remove_synonym(parse, &result->word);
-  result->offset = parse->offset;
-  result->size = parse->size;
+  result->def.offset = (uint)parse->offset;
+  result->def.size = (uint)parse->size;
 }
 
-uint dsl_dictionary_next_word(Dictionary *interface, WordDefinition *result) {
+bool dsl_dictionary_next_word(Dictionary *interface, WordDefinition *result) {
   Dsl *dsl = CONTAINER_OF(interface, Dsl, interface);
   gzFile handle = dsl->handle;
   char buf[CHAR_BUFFER_SIZE];
-  uint position = gztell(handle);
+  long int gzp;
+  if(!(gzp=gztell(handle)))
+    return false;
+  size_t position=(size_t)gzp;
   uint8_t state = 0;
   uint8_t CARD = 1;
   uint8_t DEFINITION = 1 << 1;
   DslParsingState *parse = &dsl->parse;
   if (VECTOR_SIZE(parse->synonyms) > 0) {
     dsl_return_synonyms(parse, result);
-    return 1;
+    return true;
   }
 
   if (parse->offset_new_word) {
@@ -145,14 +148,16 @@ uint dsl_dictionary_next_word(Dictionary *interface, WordDefinition *result) {
         parse->offset = position;
       }
     }
-    position = gztell(handle);
+    if(!(gzp=gztell(handle)))
+      return false;
+    position=(size_t)gzp;
   }
 
   if (VECTOR_SIZE(parse->synonyms) > 0) {
     dsl_return_synonyms(parse, result);
-    return 1;
+    return true;
   }
-  return 0;
+  return false;
 }
 
 void dsl_dictionary_close(Dictionary *interface) {
@@ -223,7 +228,7 @@ uint dsl_check_encoding(const char *filename, char *encoding) {
 
 void dsl_save(Dictionary *interface, FILE *out) {
   Dsl *dsl = CONTAINER_OF(interface, Dsl, interface);
-  write_long(interface->id, out);
+  write_short(interface->id, out);
   char *list[] = {interface->name, dsl->dsl, dsl->ann, dsl->abrv, dsl->abrv_ann, dsl->bmp, dsl->files};
   write_strings(out, ARRAY_LENGTH(list), list);
 }
@@ -261,7 +266,7 @@ Dictionary *dsl_create(const char *filename) {
   char encoding[15];
   dsl_check_encoding(dsl->dsl, encoding);
   if (strcmp(encoding, "UTF-8") == 0) {
-    interface->to_index = 1;
+    interface->to_index = true;
     dictionary_open(interface);
     dsl_get_name(dsl);
     dictionary_close(interface);
@@ -280,8 +285,8 @@ Dictionary *dsl_load(void **p, const char *filename) {
                   dsl_dictionary_next_word, dsl_dictionary_close,
                   dsl_dictionary_free, dictionary_get_definition);
 
-  interface->id=read_long_mm(p);
-  interface->to_index = 1;
+  interface->id=read_short_mm(p);
+  interface->to_index = true;
   char** const list[] = {&interface->name, &dsl->dsl, &dsl->ann, &dsl->abrv, &dsl->abrv_ann, &dsl->bmp, &dsl->files};
   read_strings_mm(p, ARRAY_LENGTH(list), list);
 
@@ -290,4 +295,5 @@ Dictionary *dsl_load(void **p, const char *filename) {
   
   return interface;
 }
+
 

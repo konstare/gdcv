@@ -15,3 +15,6 @@ gdcv
 /massif.out.*
 /prof_output
 /gdcv_valgrind
+callgrind.out*
+/Huge/
+/tests/Huge_Index/

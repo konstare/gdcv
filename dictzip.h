@@ -21,8 +21,7 @@
  * 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
-#ifndef _DICTZIP_H_
-#define _DICTZIP_H_
+#pragma once
 
 #include <stdio.h>
 #include <zlib.h>
@@ -55,5 +54,3 @@ extern int dict_data_zip(FILE *inFilename, const char *outFilename);
 #ifdef __cplusplus
 } /* end extern "C" */
 #endif
-
-#endif /* _DICTZIP_H_ */

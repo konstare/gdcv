@@ -1,6 +1,7 @@
-#include "dictionaries.h"
-#include "utf8proc/utf8proc.h"
-#include "utils.h"
+#include "../dictionaries.h"
+#include "../utf8proc/utf8proc.h"
+#include "../utils.h"
+#include <stdbool.h>
 #include <stddef.h> //size_t
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,15 +15,14 @@ typedef struct {
 } Dictd;
 
 uint decodeBase64(const char *str) {
-  static char const digits[] =
+  char const digits[] =
       "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-  uint number = 0;
+  ptrdiff_t number = 0;
   for (char const *next = str; *next; ++next) {
     char const *d = strchr(digits, *next);
     number = number * 64 + (d - digits);
   }
-
-  return number;
+  return (uint)number;
 }
 
 void dictd_cut_extension(char *basename) {
@@ -37,10 +37,10 @@ void dictd_dictionary_open(Dictionary *interface) {
   Dictd *dictd = CONTAINER_OF(interface, Dictd, interface);
   dictd->handle = gzopen(dictd->index, "rb");
 }
-uint dictd_dictionary_next_word(Dictionary *interface,
+bool dictd_dictionary_next_word(Dictionary *interface,
                                 WordDefinition *result) {
   Dictd *dictd = CONTAINER_OF(interface, Dictd, interface);
-  size_t len = MAX_WORD_LENGHT + 1 + 6 + 1 + 6 + 2;
+  const int len = MAX_WORD_LENGHT + 1 + 6 + 1 + 6 + 2;
   char word[MAX_WORD_LENGHT];
   char buf[len];
   char offset[6]; // 64^6 much larger than 2^64.
@@ -54,12 +54,12 @@ uint dictd_dictionary_next_word(Dictionary *interface,
         strcmp(word, "00databaseurl") != 0 &&
         strcmp(word, "00databaseutf8") != 0) {
       xstrcpy(&result->word, word);
-      result->offset = decodeBase64(offset);
-      result->size = decodeBase64(size);
-      return 1;
+      result->def.offset = decodeBase64(offset);
+      result->def.size = decodeBase64(size);
+      return true;
     }
   }
-  return 0;
+  return false;
 }
 
 void dictd_dictionary_close(Dictionary *interface) {
@@ -84,14 +84,14 @@ void dictd_find_name(Dictd *self) {
   Dictionary *interface = &self->interface;
   WordDefinition result = worddefinition_init();
   dictionary_open(interface);
-  size_t len = MAX_WORD_LENGHT;
+  const int len = MAX_WORD_LENGHT;
   char buf[len];
   char offset[6]; // 64^6 much larger than 2^32.
   char size[6];
   while (gzgets(self->handle, buf, len)) {
     if (sscanf(buf, "00databaseshort\t%[^\t]\t%[^\t\n]", offset, size)) {
-      result.offset = decodeBase64(offset);
-      result.size = decodeBase64(size);
+      result.def.offset = decodeBase64(offset);
+      result.def.size = decodeBase64(size);
       dictionary_get_definition(interface, &result);
       dicd_clean_name(&result);
       break;
@@ -103,7 +103,7 @@ void dictd_find_name(Dictd *self) {
 
 void dictd_save(Dictionary *interface, FILE *out) {
   Dictd *dictd = CONTAINER_OF(interface, Dictd, interface);
-  write_long(interface->id, out);
+  write_short(interface->id, out);
   char *list[] = {interface->name, dictd->dict,dictd->index};
   write_strings(out, ARRAY_LENGTH(list), list);
 }
@@ -131,7 +131,7 @@ Dictionary *dictd_create(const char *filename) {
   if (dictd->dict) {
     dictd_find_name(dictd);
     if (dictd->interface.name)
-      interface->to_index = 1;
+      interface->to_index = true;
   }
   return interface;
 }
@@ -146,7 +146,7 @@ Dictionary *dictd_load(void **p, const char *filename) {
                   dictionary_get_definition);
 
   interface->to_index=1;
-  interface->id=read_long_mm(p);
+  interface->id=read_short_mm(p);
   char **const list[] = {&interface->name, &dictd->dict,&dictd->index};
   read_strings_mm(p, ARRAY_LENGTH(list), list);
   interface->words_file = dictd->dict;
