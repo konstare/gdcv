@@ -16,4 +16,4 @@ jobs:
     - name: compile
       run: make gdcv
     - name: test
-      run: cd tests && make test
+      run: make test
