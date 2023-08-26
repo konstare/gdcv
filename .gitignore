@@ -6,5 +6,9 @@
 /gdcv_debug
 /gmon.out
 /analysis.txt
-/*.log
 *.elc
+/Huge/
+/prof_output
+tests/Huge_Index
+tests/testsuite
+*.log
