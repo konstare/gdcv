@@ -12,6 +12,9 @@ OPTIONS=$(OPTIMISATIONS)
 
 .PHONY : test
 
+test:
+	$(MAKE) -C tests test
+
 gdcv: $(OBJECTS)
 	$(CC)  -o $@ $^ $(CFLAGS) $(LDLIBS) $(OPTIONS)
 
