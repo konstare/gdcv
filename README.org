@@ -1,17 +1,14 @@
 #+TITLE: gdcv - GoldenDict console version and emacs module
 
 * Description
-gdcv is a command-line interface for searching [[https://github.com/goldendict/goldendict][GoldenDict]] dictionaries(*.dsl.dz). The program is a very rudimentary workaround to allow searching until an official command-line interface is available.
-
-As an example of a similar interface, [[https://github.com/goldendict/goldendict][GoldenDict]] has [[https://github.com/dohliam/gdcl][gdcl]] (Command-line interface for Goldendict), but for my dictionary collection(10 GB)  it works really slow due to no pre-made index  for faster searching. 
-
-[[http://code.google.com/p/stardict-3/][StarDict]] has [[http://sdcv.sourceforge.net/][sdcv]] (StarDict Console Version), but it can only handle dictionaries in the StarDict format. For users of GoldenDict who have large collections of dictionaries in DSL format, converting and maintaining two parallel sets of dictionaries is not a practical solution.
+gdcv is a command-line interface for searching dictionaries:
++ [[https://github.com/goldendict/goldendict][GoldenDict]] dictionaries(*.dsl.dz)
++ Stardict dictionaries(*.idx)
++ Dictd dictionaries(*.index)
 
 gdcv does not require an installation of GoldenDict and does not use GoldenDict's pre-made index files, it creates new one.  
-
-The main catch is that gdcv is written in C by a person who has never programmed anything before.  It seems  the program  does not leak memory, but the software architecture  is horrible.
-
-Please [[https://github.com/goldendict/goldendict/issues/37][vote]] for official  command-line interface for GoldenDict.
+    
+The program is a very rudimentary workaround to allow searching until an official command-line interface is available. Please [[https://github.com/goldendict/goldendict/issues/37][vote]] for official  command-line interface for GoldenDict.
 
 * Features
 + Search a word in a dictionary
@@ -70,7 +67,7 @@ To look up a word "cat"
 gdcv cat
 #+END_SRC
 
-[[./video/cli.gif]]
+[[./video/cli.webm]]
 
 To search words containing "cat"
 #+BEGIN_SRC sh
@@ -100,7 +97,9 @@ gunzip -S .dz dictionary.dsl.dz
 
 
 * Emacs module
-For many years I have  successfully used sdcv-mode and [[http://sdcv.sourceforge.net/][sdcv]] in my work flow. Turn out all modern dictionaries are formatted in GoldenDict format (DSL). I tried to convert DSL to StarDict format with [[https://github.com/ilius/pyglossary][pyglossary]] but the result was mediocre. There is [[https://github.com/stardiviner/goldendict.el][goldendict-el]] for Emacs but I wanted something similar to sdcv-mode.
+For many years I have  successfully used sdcv-mode and [[http://sdcv.sourceforge.net/][sdcv]] in my workflow. Turn out all modern dictionaries are formatted in GoldenDict format (DSL). I tried to convert DSL to StarDict format with [[https://github.com/ilius/pyglossary][pyglossary]] but the result was mediocre. There is [[https://github.com/stardiviner/goldendict.el][goldendict-el]] for Emacs but I wanted something similar to sdcv-mode.
+
+Here is my attempt to rewrite sdcv-mode for gdcv.
 
 ** To install gdcv-mode
 **** compile and create index files.
@@ -147,14 +146,15 @@ All media files for the translated word are unpacked to =gdcv-media-temp-directo
 ** Usage
 =C-c d= to translate word  (or text selection)  under the cursor.
 
-[[./video/emacs.gif]]
+
+[[./video/emacs.webm]]
 
 
 The gdcv-mode goes with simple ivy interface *ivy-gdcv*, which can be used to search a word. By default, the prefix search is used, for example for "cat", one can get: "cat","catamaran", "cater"... For the substring search one can type "*cat" and get: "cat","muscatel",...
 
 
 
-[[./video/ivy.gif]]
+[[./video/ivy.webm]]
 
 
 * Useful links
