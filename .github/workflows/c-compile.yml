@@ -1,0 +1,19 @@
+name: C Build Test
+
+on:
+  push:
+    branches: [ "stardict"]
+  pull_request:
+    branches: [  "stardict" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: compile
+      run: make gdcv
+    - name: test
+      run: make test

@@ -2,7 +2,6 @@
 /gdcv.org
 *.so
 /index
-/gmon.out
 /analysis.txt
 *.log
 *.elc
