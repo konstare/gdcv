@@ -67,7 +67,7 @@ To look up a word "cat"
 gdcv cat
 #+END_SRC
 
-[[./video/cli.webm]]
+[[./video/cli.mp4]]
 
 To search words containing "cat"
 #+BEGIN_SRC sh
@@ -147,14 +147,14 @@ All media files for the translated word are unpacked to =gdcv-media-temp-directo
 =C-c d= to translate word  (or text selection)  under the cursor.
 
 
-[[./video/emacs.webm]]
+[[./video/emacs.mp4]]
 
 
 The gdcv-mode goes with simple ivy interface *ivy-gdcv*, which can be used to search a word. By default, the prefix search is used, for example for "cat", one can get: "cat","catamaran", "cater"... For the substring search one can type "*cat" and get: "cat","muscatel",...
 
 
 
-[[./video/ivy.webm]]
+[[./video/ivy.mp4]]
 
 
 * Useful links
