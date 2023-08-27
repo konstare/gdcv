@@ -6,7 +6,7 @@ DEBUG_BASIC= -O0 -g3 -ggdb
 DEBUG_GPROF =$(DEBUG_BASIC) -pg
 DEBUG_VALGRIND= $(DEBUG_BASIC) -static-libasan
 DEBUG= $(DEBUG_VALGRIND) -fsanitize=address
-OBJECTS = gdcv.c  utils.c dictzip.c utf8proc/utf8proc.c dictionary_formats/stardict.c dictionary_formats/dictd.c dictionary_formats/dsl.c dictionaries.c index.c cvec.c forms.c buffer.c
+OBJECTS = gdcv.c  utils.c dictzip.c utf8proc/utf8proc.c dictionary_formats/stardict.c dictionary_formats/dictd.c dictionary_formats/dsl.c dictionaries.c index.c cvec.c forms.c buffer.c heap.c
 
 OPTIONS=$(OPTIMISATIONS)
 
@@ -35,3 +35,4 @@ gprof: gdcv
 
 clean:
 	rm -f  gdcv *.o
+	$(MAKE) -C tests clean	

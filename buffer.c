@@ -1,6 +1,7 @@
 #include <string.h>
 #include "dictionaries.h"
 #include "buffer.h"
+#include "utils.h"
 
 struct Buffer{
   char *bytes;
@@ -8,34 +9,34 @@ struct Buffer{
   size_t search_start;
 };
 
-void Buffer_search_change(Buffer *self, size_t search){
+void buffer_search_change(Buffer *self, size_t search){
   self->search_start= search;
 }
 
 
 
-Buffer *Buffer_init(){
+Buffer *buffer_init(){
   Buffer *result=xcalloc(1, sizeof *result);
   char buffer[CHAR_BUFFER_SIZE];
   result->bytes=buffer;
   return result;
 }
 
-void Buffer_free(Buffer *self){
+void buffer_free(Buffer *self){
   free(self);
 }
 
-void Buffer_push(Buffer *self, const char ch){
+void buffer_push(Buffer *self, const char ch){
   self->bytes[self->len++]=ch;
   self->bytes[self->len]='\0';
 }
 
-void Buffer_pushchars(Buffer *self, const char* str){
+void buffer_pushchars(Buffer *self, const char* str){
   strcpy(self->bytes +self->len, str);
   self->len += strlen(str);
 }
 
-char *Buffer_strstr(Buffer *self, const char *needle){
+char *buffer_strstr(Buffer *self, const char *needle){
   size_t len = strlen(needle);
   char *result=strstr(self->bytes + self->search_start, needle);
   if(result){
@@ -47,19 +48,33 @@ char *Buffer_strstr(Buffer *self, const char *needle){
   return result;
 }
 
-size_t Buffer_getlen(Buffer *self){
+size_t buffer_getlen(const Buffer *self){
   return self->len;
 }
 
-void Buffer_setlen(Buffer *self, size_t len){
-  self->len=len;
-}
-
-void Buffer_shrink(Buffer *self, size_t len){
+void buffer_shrink(Buffer *self, size_t len){
   self->len -=len;
 }
 
-char *Buffer_steal(Buffer *self){
+char *buffer_steal(const Buffer *self){
   return xstrdup(self->bytes);
 }
 
+
+struct BufferState {
+  size_t len;
+  size_t search;
+};
+
+BufferState *bufferstate_save(const Buffer *self){
+  BufferState *result = xmalloc(sizeof *result);
+  result->len= self->len;
+  result->search = self->search_start;
+  return result;
+}
+
+void bufferstate_restore(Buffer *self, BufferState *state){
+  self->len = state->len;
+  self->search_start = state->search;
+  free(state);
+}

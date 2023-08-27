@@ -3,20 +3,24 @@
 
 typedef struct Buffer Buffer;
 
-Buffer *Buffer_init();
+typedef struct BufferState BufferState;
 
-void Buffer_free(Buffer *self);
+BufferState *bufferstate_save(const Buffer *self);
+void bufferstate_restore(Buffer *self, BufferState *state);
 
-void Buffer_push(Buffer *self, const char ch);
+Buffer *buffer_init();
 
-void Buffer_pushchars(Buffer *self, const char* str);
+void buffer_free(Buffer *self);
 
-char *Buffer_strstr(Buffer *self, const char *needle);
+void buffer_push(Buffer *self, const char ch);
 
-void Buffer_search_change(Buffer *self, size_t search);
+void buffer_pushchars(Buffer *self, const char* str);
 
-size_t Buffer_getlen(Buffer *self);
-void Buffer_setlen(Buffer *self, size_t len);
-void Buffer_shrink(Buffer *self, size_t len);
-char *Buffer_steal(Buffer *self);
+char *buffer_strstr(Buffer *self, const char *needle);
+
+void buffer_search_change(Buffer *self, size_t search);
+
+size_t buffer_getlen(const Buffer *self);
+void buffer_shrink(Buffer *self, size_t len);
+char *buffer_steal(const Buffer *self);
 

@@ -23,4 +23,3 @@ void vec_grow(void **vector, size_t more, size_t type_size) {
 void vec_delete(void *vector) {
   free(VECTOR_META(vector));
 }
-

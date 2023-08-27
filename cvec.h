@@ -14,7 +14,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-#define vector(T) T*
+#define VECTOR(T) T*
 
 typedef struct {
     size_t size;

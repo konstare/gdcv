@@ -19,7 +19,7 @@ extern void add_test(test_node *tn);
     }                                                                          \
   } while (0)
 
-#define UNIT_TEST(f)                                                           \
+#define TEST(f)                                                           \
   static void f(void);                                                         \
   static void __attribute__((constructor)) __construct_##f(void) {             \
     static test_node tn;                                                       \

@@ -63,31 +63,13 @@ int main(int argc, const char *argv[]) {
 
   /*   //6756787 */
   /*   //6756342 */
-  
-  DB idx = database_open("/tmp/GD/");
-  char **result2 = index_mm_search_forms(idx, "*Похоаке");
+  //work as a librarian
+  DB idx = database_open("../index_db");
+  char **result2 = index_mm_search_forms(idx, "*b*");
   for(size_t i=0; i<VECTOR_SIZE(result2); i++){
     printf("%s\n", result2[i]);
     free(result2[i]);
   }
-//  printf("%ld\n",VECTOR_SIZE(result2));
-VECTOR_FREE(result2);
-
-/* printf("\n\n"); */
-  
-/*   char **result3 = index_mm_search_prefix_forms(idx, "ca"); */
-/*   for(size_t i=0; i<VECTOR_SIZE(result3); i++){ */
-/*     char *s1, *s2; */
-/*     if((s1 = strchr(result3[i], 't'))) */
-/*       if((s2 = strchr(s1, 'z'))) */
-/* 	{ */
-/* 	  s2++; */
-/* 	  if(*s2=='\0') */
-/* 	    printf("%s\n", result3[i]); */
-/* 	} */
-/*     free(result3[i]); */
-/*   } */
-/*   VECTOR_FREE(result3); */
-  
-//  database_close(idx);
+  VECTOR_FREE(result2);
+database_close(idx);
 }

@@ -8,9 +8,9 @@
 
 
 
-inline void *xcalloc(size_t n, size_t s) {
+inline void *xcalloc(size_t nmemb, size_t size) {
   void *val;
-  val = calloc(n, s);
+  val = calloc(nmemb, size);
   CHECK_PTR(val);
   return val;
 }

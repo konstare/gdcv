@@ -7,29 +7,30 @@
 #include <string.h>
 #include "../index.h"
 #include "../cvec.h"
+#include "../heap.h"
 
-UNIT_TEST(AppendExtension_1) {
+TEST(AppendExtension_1) {
   char basename[255] = "/##AAA/aaa/2";
   char *result = append_extension(basename, ".dict");
   test_assert(!result);
   free(result);
 }
 
-UNIT_TEST(AppendExtension_2) {
+TEST(AppendExtension_2) {
   char basename[255] = "./Dicts/dictd_example";
   char *result = append_extension(basename, ".index");
   test_assert(!strcmp(result, "./Dicts/dictd_example.index"));
   free(result);
 }
 
-UNIT_TEST(AppendExtension_3) {
+TEST(AppendExtension_3) {
   char basename[255] = "./Dicts/dictd_example.index";
   char *result = append_extension(basename, ".index");
   test_assert(!strcmp(basename, "./Dicts/dictd_example.index"));
   free(result);
 }
 
-UNIT_TEST(RealPath_) {
+TEST(RealPath_) {
   int argc = 2;
   const char *argv[] = {"./Dicts/dictd_example.in",
                         "./Dicts/dictd_example.index"};
@@ -42,7 +43,7 @@ UNIT_TEST(RealPath_) {
   realpath_free(result);
 }
 
-UNIT_TEST(DictdCreate_) {
+TEST(DictdCreate_) {
   const char *filename = "./Dicts/dictd_example.index";
   Dictionary *interface = dictd_create(filename);
   test_assert(interface->to_index);
@@ -67,7 +68,7 @@ size_t check_word(Dictionary *interface, const char *answer[],
   return assert;
 }
 
-UNIT_TEST(DictdCreateWordList_) {
+TEST(DictdCreateWordList_) {
   const char *filename = "./Dicts/dictd_example.index";
   Dictionary *interface = dictd_create(filename);
   const char *answer[] = {"animal", "aNimal", "anIml", "cat", "empty definition", "plant"};
@@ -75,28 +76,28 @@ UNIT_TEST(DictdCreateWordList_) {
   test_assert(assert);
 }
 
-UNIT_TEST(DictdCreate_Broken) {
+TEST(DictdCreate_Broken) {
   const char *filename = "./Dicts/dictd_broken.index";
   Dictionary *interface = dictd_create(filename);
   test_assert(!interface->to_index);
   interface->free(interface);
 }
 
-UNIT_TEST(DictdCreate_BrokenName) {
+TEST(DictdCreate_BrokenName) {
   const char *filename = "./Dicts/dictd_broken_name.index";
   Dictionary *interface = dictd_create(filename);
   test_assert(!interface->to_index);
   interface->free(interface);
 }
 
-UNIT_TEST(StardictCreate_) {
+TEST(StardictCreate_) {
   const char *filename = "./Dicts/stardict_example.idx";
   Dictionary *interface = stardict_create(filename);
   test_assert(interface->to_index);
   interface->free(interface);
 }
 
-UNIT_TEST(StardictCreateSyn_) {
+TEST(StardictCreateSyn_) {
   const char *filename = "./Dicts/stardict_example.idx";
   Dictionary *interface = stardict_create(filename);
   const char *answer[] = {"2dimensional",   "apple",          "2dimensionale",
@@ -106,14 +107,14 @@ UNIT_TEST(StardictCreateSyn_) {
   test_assert(assert);
 }
 
-UNIT_TEST(DslCreate_) {
+TEST(DslCreate_) {
   const char *filename = "./Dicts/sample.dsl";
   Dictionary *interface = dsl_create(filename);
   test_assert(interface->to_index);
   interface->free(interface);
 }
 
-UNIT_TEST(DslCreate_1) {
+TEST(DslCreate_1) {
   const char *filename = "./Dicts/sample.dsl";
   Dictionary *interface = dsl_create(filename);
   const char *answer[] = {
@@ -127,27 +128,27 @@ UNIT_TEST(DslCreate_1) {
 
 void *dsl_clean_word(char *str);
 
-UNIT_TEST(DslClean_1) {
+TEST(DslClean_1) {
   char test[] = "ad{{ad}a}s{dz}d{q}\n";
   dsl_clean_word(test);
   test_assert(!strcmp(test, "adsd"));
 }
 
-UNIT_TEST(DslClean_2) {
+TEST(DslClean_2) {
   char test[] = "ad\\{{ad}Z\\}s\\\\\\{dzd}{q}\n";
   const char answer[] = "ad{Z}s\\{dzd";
   dsl_clean_word(test);
   test_assert(!strcmp(test, answer));
 }
 
-UNIT_TEST(DslClean_3) {
+TEST(DslClean_3) {
   char test[] = "ad\\{{ad}Z\\}s\\\\\\{dzd}{q}\r\n";
   const char answer[] = "ad{Z}s\\{dzd";
   dsl_clean_word(test);
   test_assert(!strcmp(test, answer));
 }
 
-UNIT_TEST(DslClean_4) {
+TEST(DslClean_4) {
   char test[] = "\\{af\\} afe\n";
   const char answer[] = "{af} afe";
   dsl_clean_word(test);
@@ -155,7 +156,7 @@ UNIT_TEST(DslClean_4) {
 }
 
 
-UNIT_TEST(IndexCreate) {
+TEST(IndexCreate) {
   Node *root;
   root = index_create();
   test_assert(VECTOR_SIZE(root->childrens) == 0 && VECTOR_SIZE(root->forms) == 0 && root->childrens == NULL &&
@@ -185,18 +186,18 @@ Node *create_trie_default() {
   return create_trie(words, len);
 }
 
-UNIT_TEST(IndexRoot) {
+TEST(IndexRoot) {
   Node *root = create_trie_default();
   test_assert(VECTOR_SIZE(root->childrens) == 1 && VECTOR_SIZE(root->forms) == 0 && !strcmp(root->prefix, ""));
   index_free(root);
 }
 
-UNIT_TEST(IndexChildren1) {
+TEST(IndexChildren1) {
   Node *root = create_trie_default();
   test_assert(root->childrens[0].ch == 'r');
   index_free(root);
 }
-UNIT_TEST(IndexChildren2) {
+TEST(IndexChildren2) {
   Node *root = create_trie_default();
   Node *child1 = root->childrens[0].node;
   test_assert(VECTOR_SIZE(child1->childrens) == 2 && VECTOR_SIZE(child1->forms) == 0 &&
@@ -205,7 +206,7 @@ UNIT_TEST(IndexChildren2) {
   index_free(root);
 }
 
-UNIT_TEST(IndexChildren3) {
+TEST(IndexChildren3) {
   Node *root = create_trie_default();
   Node *child2 = root->childrens[0].node->childrens[0].node;
   test_assert(VECTOR_SIZE(child2->childrens) == 2 && VECTOR_SIZE(child2->forms) == 0 &&
@@ -214,14 +215,14 @@ UNIT_TEST(IndexChildren3) {
   index_free(root);
 }
 
-UNIT_TEST(IndexChildren4) {
+TEST(IndexChildren4) {
   Node *root = create_trie_default();
   Node *child3 = root->childrens[0].node->childrens[0].node->childrens[1].node;
   test_assert(!strcmp(child3->prefix, "lus") &&  child3->forms[0].pos->id == 16);
   index_free(root);
 }
 
-UNIT_TEST(IndexSameWords) {
+TEST(IndexSameWords) {
   const char *words[] = {"romane", "romane", "romane", "romane", "romane"};
   const uint len = ARRAY_LENGTH(words);
   Node *root = create_trie(words, len);
@@ -231,7 +232,7 @@ UNIT_TEST(IndexSameWords) {
   index_free(root);
 }
 
-UNIT_TEST(IndexSameUTFWords) {
+TEST(IndexSameUTFWords) {
   const char *words[] = {"romane", "römane", "romäne", "romanë", "romänë"};
   const uint len = ARRAY_LENGTH(words);
   Node *root = create_trie(words, len);
@@ -243,7 +244,7 @@ UNIT_TEST(IndexSameUTFWords) {
   index_free(root);
 }
 
-UNIT_TEST(SaveDictionaryandLoad) {
+TEST(SaveDictionaryandLoad) {
   char buffer[CHAR_BUFFER_SIZE];
   const char *argv[] = {"./Dicts/dictd_example.index", "./Dicts/stardict_example.idx", "./Dicts/sample.dsl"};
   RealPaths realpath = realpath_init(ARRAY_LENGTH(argv), argv);
@@ -275,10 +276,9 @@ UNIT_TEST(SaveDictionaryandLoad) {
 }
 
 /* WordDefinition *word_get_forms(const DB idx, const char *search_word); */
-
-void create_index(){
-  const char *argv[] = {"./Dicts/dictd_example.index", "./Dicts/dictd_example2.index"};
-  RealPaths realpath = realpath_init(ARRAY_LENGTH(argv), argv);
+//   = {"./Dicts/dictd_example.index", "./Dicts/dictd_example2.index"};
+void create_index(const char *argv[], size_t len){
+  RealPaths realpath = realpath_init(len, argv);
   DictionaryArray d = dictionary_array_init(realpath);
   uint dN = 0;
   Node *root = index_create();
@@ -308,8 +308,9 @@ void create_index(){
 
 Definitions *index_mm_get_definitions(const DB idx, const char *search_word);
 
-UNIT_TEST(IndexLoad) {
-  create_index();
+TEST(IndexLoad) {
+  const char *argv[] = {"./Dicts/dictd_example.index", "./Dicts/dictd_example2.index"};
+  create_index(argv , ARRAY_LENGTH(argv));
   DB db = database_open("/tmp");
 
   Definitions *result = index_mm_get_definitions(db, "animal");
@@ -359,8 +360,9 @@ static bool check_index_search(char **result, const char *answer[], size_t len){
   return assert;
 }
 
-UNIT_TEST(IndexSearchAll) {
-  create_index();
+TEST(IndexSearchAll) {
+  const char *argv[] = {"./Dicts/dictd_example.index", "./Dicts/dictd_example2.index"};
+  create_index(argv , ARRAY_LENGTH(argv));
   DB db = database_open("/tmp");
   bool assert =true;
 
@@ -372,8 +374,9 @@ UNIT_TEST(IndexSearchAll) {
   database_close(db);
 }
 
-UNIT_TEST(IndexSearchPrefix) {
-  create_index();
+TEST(IndexSearchPrefix) {
+  const char *argv[] = {"./Dicts/dictd_example.index", "./Dicts/dictd_example2.index"};
+  create_index(argv , ARRAY_LENGTH(argv));
   DB db = database_open("/tmp");
   bool assert =true;
   
@@ -390,8 +393,9 @@ UNIT_TEST(IndexSearchPrefix) {
 }
 
 
-UNIT_TEST(IndexSearchSubstring) {
-  create_index();
+TEST(IndexSearchSubstring) {
+  const char *argv[] = {"./Dicts/dictd_example.index", "./Dicts/dictd_example2.index"};
+  create_index(argv , ARRAY_LENGTH(argv));
   DB db = database_open("/tmp");
   bool assert =true;
 
@@ -423,7 +427,7 @@ bool check_keys(char **string, const char *answer[], size_t len){
   return assert;
 }
 
-UNIT_TEST(KeyParse) {
+TEST(KeyParse) {
   bool assert = true;
   char **key;
   const char *answer[]={"c", "arm", ""};
@@ -462,14 +466,15 @@ UNIT_TEST(KeyParse) {
   test_assert(assert);
 }
 
-UNIT_TEST(IndexSearchKey) {
-  create_index();
+TEST(IndexSearchKey) {
+  const char *argv[] = {"./Dicts/dictd_example.index", "./Dicts/dictd_example2.index"};
+  create_index(argv , ARRAY_LENGTH(argv));
   DB db = database_open("/tmp");
   bool assert =true;
   char **result;
-  /* result = index_mm_search_forms(db, "*nim*"); */
-  /*  const char *answer[]={"animal", "aNimal", "anIml"}; */
-  /* assert &=check_index_search(result, answer, ARRAY_LENGTH(answer)); */
+  result = index_mm_search_forms(db, "*nim*");
+  const char *answer[]={"animal", "aNimal", "anIml"};
+  assert &=check_index_search(result, answer, ARRAY_LENGTH(answer));
 
 
   result = index_mm_search_forms(db, "an*");
@@ -510,21 +515,55 @@ UNIT_TEST(IndexSearchKey) {
   database_close(db);
 }
 
-/* UNIT_TEST(HugeIndexSearchKey) { */
-/*   create_index(); */
-/*   DB db = database_open("Huge_Index"); */
-/*   bool assert =true; */
-/*   char **result; */
+TEST(IndexSearchKey2) {
+  const char *argv[] = {"./Dicts/dictd_example3.index"};
+  create_index(argv , ARRAY_LENGTH(argv));
 
-/*   result = index_mm_search_forms(db, "a*z"); */
-/*   printf("%ld",VECTOR_SIZE(result)); */
-/*   for(size_t i=0; i<VECTOR_SIZE(result); i++){ */
-/*     printf("%s\n", result[i]); */
-/*     free(result[i]); */
-/*   } */
-/*   assert &=VECTOR_SIZE(result) == 46; */
-/*   test_assert(assert); */
+  DB db = database_open("/tmp");
+  bool assert =true;
+  char **result;
+  result = index_mm_search_forms(db, "*arm*");
+  const char *answer[]={"work as a hired hand or as a farmhand or as a farm laborer"};
+  assert &=check_index_search(result, answer, ARRAY_LENGTH(answer));
+  
+  test_assert(assert);
+  
+  database_close(db);
+}
 
-/*   VECTOR_FREE(result); */
-/*   database_close(db); */
-/* } */
+typedef struct{
+  size_t len;
+} Search_Result;
+
+bool compare(void *a, void *b){
+  const Search_Result *k1 = a;
+  const Search_Result *k2 = b;
+  return k1->len > k2->len;
+}
+
+
+TEST(HeapTest) {
+  bool assert =true;
+  const size_t input[] = {6, 4, 9, 7, 16, 21, 24, 16, 28, 24, 21, 11, 21, 4, 4, 7, 30, 9, 7, 19, 21, 18, 20, 8, 25, 24, 17, 30, 16, 27};
+  const size_t answer[] = {30, 30, 28, 27, 25, 24, 24, 24, 21, 21, 21, 21, 20, 19, 18, 17, 16, 16, 16, 11, 9, 9, 8, 7, 7, 7, 6, 4, 4, 4};
+
+  Search_Result *result = NULL;
+  HEAP_INIT(result, compare);
+
+  
+  for(size_t i=0; i< ARRAY_LENGTH(input); i++){
+    Search_Result res = {.len=input[i]};
+    HEAP_INSERT(result, res);
+  }
+  
+  for(size_t i=0; i<ARRAY_LENGTH(answer); i++){
+    Search_Result *res = HEAP_ROOT(result);
+    assert &= res->len == answer[i];
+    HEAP_POP(result);
+  }
+  HEAP_FREE(result);
+
+  test_assert(assert);
+
+}
+

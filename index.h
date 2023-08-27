@@ -121,6 +121,7 @@ typedef struct childrens {
   };
 } Childrens;
 
+
 /*
   Insert word into index. node is the pointer to the root. word contains utf_cleaned key and definition.  
 */
@@ -140,3 +141,4 @@ extern Definitions *index_mm_get_definitions(const DB idx, const char *search_wo
 extern char ** index_mm_search_prefix_forms(const DB idx, const char *word);
 extern char ** index_mm_search_substring_forms(const DB idx, const char *word);
 extern char ** index_mm_search_forms(const DB idx, const char *word);
+

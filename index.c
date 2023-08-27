@@ -1,6 +1,7 @@
 //https://github.com/BigfootACA/simple-init/blob/77e797560acf5dbb3e79c09a3dea90232bc81f00/libs/libkmod/libkmod-index.c#L891
 #include "index.h"
 #include "cvec.h"
+#include "heap.h"
 #include "dictionaries.h"
 #include "dictzip.h"
 #include "buffer.h"
@@ -35,16 +36,12 @@ static int comp_ch(const void *a1, const void *a2) {
   //https://gcc.gnu.org/bugzilla/show_bug.cgi?id=106247
 }
 
-
 /* #include <assert.h> */
 /* struct foo4 { */
 /*   char c;      /\* 1 byte *\/ */
 /*   short s;     /\* 2 bytes *\/ */
 /* }; */
 /* static_assert(sizeof(struct foo4) == 3, "Check your assumptions"); */
-
-
-
 
 static inline Node *index_null_node() {
   Node *node = xcalloc(1, sizeof *node);
@@ -356,7 +353,6 @@ typedef struct M_Node {
   M_Form form;
 } M_Node;
 
-
 static M_Node *index_mm_read_node(const DB idx, uint32_t offset) {
   void *p = idx->mm;
   M_Node *node = xmalloc(sizeof *node);
@@ -420,23 +416,18 @@ static void index_mm_free_node(M_Node *node) {
   free(node);
 }
 
-
-
-
-
-
 typedef struct{
   size_t len;
   char *word;
   M_Form m_form;
 } Search_Result;
 
-void Search_Result_insert(Search_Result **result, Buffer *buf, M_Form m_form)
+
+void search_result_insert(Search_Result **result, const Buffer *buf, const M_Form m_form)
 {
-  Search_Result sr ={.word=Buffer_steal(buf), .len=Buffer_getlen(buf), .m_form=m_form};
+  Search_Result sr ={.word=buffer_steal(buf), .len=buffer_getlen(buf), .m_form=m_form};
   VECTOR_PUSH(*result, sr);
 }
-
 
 char **search_result_convert(const DB idx, Search_Result *sr){
   char **result=NULL;
@@ -454,8 +445,6 @@ char **search_result_convert(const DB idx, Search_Result *sr){
 inline static bool is_form(const M_Node *node) {
   return (0 != node->form.start && 0 != node->form.end);
 }
-
-
 
 extern Definitions *index_mm_get_definitions(const DB idx, const char *search_word){
   M_Node *node = index_mm_readroot(idx);
@@ -488,33 +477,31 @@ extern Definitions *index_mm_get_definitions(const DB idx, const char *search_wo
    return result;
 }
 
-
 static void index_mm_search_all(const DB idx, const M_Node *node, Buffer *buf, Search_Result **result){
-  Buffer_pushchars(buf, node->prefix);
+  buffer_pushchars(buf, node->prefix);
   if (is_form(node)) {
-    Search_Result_insert(result, buf, node->form);
+    search_result_insert(result, buf, node->form);
   }
   for (unsigned char k = 0; k < VECTOR_SIZE(node->children); k++){
     M_Node *child = index_mm_read_node(idx, node->children[k].offset);
-    size_t len = Buffer_getlen(buf);
-    Buffer_push(buf, node->children[k].ch);
+    BufferState *state = bufferstate_save(buf);
+    buffer_push(buf, node->children[k].ch);
     index_mm_search_all(idx, child, buf, result);
     index_mm_free_node(child);
-    Buffer_setlen(buf, len);
+    bufferstate_restore(buf, state);
   }
 }
 
 char **index_mm_search_all_forms(const DB idx){
-  Buffer *buf = Buffer_init();
+  Buffer *buf = buffer_init();
   M_Node *node = index_mm_readroot(idx);
   Search_Result *sr =NULL;
   index_mm_search_all(idx,node,buf, &sr);
   char **result=search_result_convert(idx, sr);
   index_mm_free_node(node);
-  Buffer_free(buf);
+  buffer_free(buf);
   return result;
 }
-
 
 static Search_Result *index_mm_search_prefix(const DB idx, const char *key, M_Node *node, Buffer *buf){
   Search_Result *result=NULL;
@@ -530,8 +517,8 @@ static Search_Result *index_mm_search_prefix(const DB idx, const char *key, M_No
      }
      if (key[i]=='\0' )
        {
-	 Buffer_pushchars(buf, key);
-	 Buffer_shrink(buf, strlen(key) - key_len_include); //prefix will be included on the next step (see index_mm_search_all)
+	 buffer_pushchars(buf, key);
+	 buffer_shrink(buf, strlen(key) - key_len_include); //prefix will be included on the next step (see index_mm_search_all)
 	 index_mm_search_all(idx, node, buf, &result);
 	 index_mm_free_node(node);
 	 goto exit;
@@ -547,49 +534,48 @@ static Search_Result *index_mm_search_prefix(const DB idx, const char *key, M_No
 }
 
 extern char ** index_mm_search_prefix_forms(const DB idx, const char *word){
-  Buffer *buf = Buffer_init();
+  Buffer *buf = buffer_init();
   M_Node *node = index_mm_readroot(idx);
   char *key = word_utf8_clean(word);
   Search_Result *sr= index_mm_search_prefix(idx, key, node, buf);
   char **result=search_result_convert(idx, sr);
-  Buffer_free(buf);
+  buffer_free(buf);
   free(key);
   return  result;
 }
 
-
 static void index_mm_search_substring(const DB idx, const char *key, const M_Node *node, Buffer *buf, Search_Result **result){
-  Buffer_pushchars(buf, node->prefix);
-  if(Buffer_strstr(buf, key))
+  buffer_pushchars(buf, node->prefix);
+  if(buffer_strstr(buf, key))
     {
-      Buffer_shrink(buf, strlen(node->prefix));  //prefix will be included on the next step (see index_mm_search_all)
+      buffer_shrink(buf, strlen(node->prefix));  //prefix will be included on the next step (see index_mm_search_all)
       index_mm_search_all(idx, node, buf, result);
       return;
     }
   for (unsigned char k = 0; k < VECTOR_SIZE(node->children); k++){
     M_Node *child = index_mm_read_node(idx, node->children[k].offset);
-    size_t len = Buffer_getlen(buf);
-    Buffer_push(buf, node->children[k].ch);
-    if(Buffer_strstr(buf, key))
+    BufferState *state = bufferstate_save(buf);
+    buffer_push(buf, node->children[k].ch);
+    if(buffer_strstr(buf, key))
       index_mm_search_all(idx, child, buf, result);
     else{
       index_mm_search_substring(idx, key, child, buf,  result);
     }
     index_mm_free_node(child);
-    Buffer_setlen(buf, len);
+    bufferstate_restore(buf, state);
   }
   
   return;
 }
 
 extern char ** index_mm_search_substring_forms(const DB idx, const char *word){
-  Buffer *buf = Buffer_init();
+  Buffer *buf = buffer_init();
   M_Node *node = index_mm_readroot(idx);
   char *key =  word_utf8_clean(word);
   Search_Result *sr = NULL;
   index_mm_search_substring(idx, key, node, buf , &sr);
   char **result=search_result_convert(idx, sr);
-  Buffer_free(buf);
+  buffer_free(buf);
   index_mm_free_node(node);
   free(key);
   return result;
@@ -617,8 +603,8 @@ char **key_parse(const char *str){
 
 typedef struct{
   const DB idx;   //where to search
-  char **key_substrings;  //what to search
-  size_t current_substring; //
+  char **keys;  //what to search
+  size_t key_idx; //current subkey which is searched
   M_Node *node;  //where we now
   Search_Result **result; //what is found
   Buffer *buf; //what is the compound string now
@@ -626,55 +612,55 @@ typedef struct{
 
 static void index_mm_search__substring(Search_State args);
 
-static inline bool is_last_substring(Search_State args){
-  return VECTOR_SIZE(args.key_substrings) == args.current_substring + 1;
+static inline bool is_last_subkey(Search_State args){
+  return VECTOR_SIZE(args.keys) == args.key_idx + 1;
 }
 
-static inline void search_result_add_if(bool condition, Search_State args, size_t shrink) {
-  if (is_last_substring(args)) {
+static inline void search_result_add_if(Search_State args, bool condition, size_t shrink) {
+  if (is_last_subkey(args)) {
     if (is_form(args.node) && condition) // the node  has forms and the condition
-      Search_Result_insert(args.result, args.buf, args.node->form);
+      search_result_insert(args.result, args.buf, args.node->form);
   } else {
-    Buffer_shrink(args.buf, shrink);
-    args.current_substring++;
+    buffer_shrink(args.buf, shrink);
+    args.key_idx++;
     index_mm_search__substring(args);
   }
 }
 
 static void index_mm_search__substring(Search_State args) {
-  const char *subkey = args.key_substrings[args.current_substring];
-  size_t sublen = VECTOR_SIZE(subkey)-1;
-  if (sublen == 0) {
+  const char *subkey = args.keys[args.key_idx];
+  size_t subkey_len = VECTOR_SIZE(subkey)-1;
+  if (subkey_len == 0) {
     index_mm_search_all(args.idx, args.node, args.buf, args.result);
     return;
   }
-  Buffer_pushchars(args.buf, args.node->prefix);
+  buffer_pushchars(args.buf, args.node->prefix);
   char *s;
-  if ((s = Buffer_strstr(args.buf, subkey))) {
-    search_result_add_if(
-			 strlen(s) == sublen, // the key closes the node.
-			 args, strlen(args.node->prefix)); // prefix will be included on the next step 
+  if ((s = buffer_strstr(args.buf, subkey))) {
+    search_result_add_if(args,
+			 strlen(s) == subkey_len, // the key closes the node.
+			 strlen(args.node->prefix)); // prefix will be included on the next step 
     return;
   }
   M_Node *parent= args.node;
   for (unsigned char k = 0; k < VECTOR_SIZE(parent->children); k++) {
     M_Node *child = index_mm_read_node(args.idx, parent->children[k].offset);
     args.node=child;
-    size_t len = Buffer_getlen(args.buf);
-    Buffer_push(args.buf, parent->children[k].ch);
-    if ((s = Buffer_strstr(args.buf, subkey))) {
-      search_result_add_if(strlen(child->prefix) == 0, // the prefix is empty.
-                           args, 0);
+    BufferState *state = bufferstate_save(args.buf);
+    buffer_push(args.buf, parent->children[k].ch);
+    if ((s = buffer_strstr(args.buf, subkey))) {
+      search_result_add_if(args,
+			   strlen(child->prefix) == 0, // the prefix is empty.
+                           0);
     } else {
       index_mm_search__substring(args);
     }
-    Buffer_setlen(args.buf, len);
+    bufferstate_restore(args.buf, state);
     index_mm_free_node(child);
   }
 
   return;
 }
-
 
 static void index_mm_search__prefix(Search_State args,  const char *prefix) {
   size_t i = 0;
@@ -683,11 +669,12 @@ static void index_mm_search__prefix(Search_State args,  const char *prefix) {
       return;
   }
   if (*prefix == '\0') {
-    const char *prefix2 = args.key_substrings[0];
-    Buffer_pushchars(args.buf, prefix2);
-    Buffer_search_change(args.buf, VECTOR_SIZE(prefix2)-1);
-    search_result_add_if(!args.node->prefix[i], // node->prefix ends with the key
-                         args, i);
+    const char *prefix2 = args.keys[0];
+    buffer_pushchars(args.buf, prefix2);
+    buffer_search_change(args.buf, VECTOR_SIZE(prefix2)-1);
+    search_result_add_if(args,
+			 !args.node->prefix[i], // node->prefix ends with the key
+                          i);
     return;
   }
   M_Node *child;
@@ -700,14 +687,14 @@ static void index_mm_search__prefix(Search_State args,  const char *prefix) {
 }
 
 extern char **index_mm_search_forms(const DB idx, const char *word) {
-  Buffer *buf = Buffer_init();
+  Buffer *buf = buffer_init();
   M_Node *node = index_mm_readroot(idx);
   char *utf_clean = word_utf8_clean(word);
   char **key = key_parse(utf_clean);
   free(utf_clean);
   Search_Result *search_result = NULL;
-  Search_State args = {.current_substring = 0,
-                      .key_substrings = key,
+  Search_State args = {.key_idx = 0,
+                      .keys = key,
                       .idx = idx,
                       .node = node,
                       .result = &search_result,
@@ -718,7 +705,7 @@ extern char **index_mm_search_forms(const DB idx, const char *word) {
   char **result = search_result_convert(idx, search_result);
 
   index_mm_free_node(node);
-  Buffer_free(buf);
+  buffer_free(buf);
   for (size_t i = 0; i < VECTOR_SIZE(key); i++)
     VECTOR_FREE(key[i]);
   VECTOR_FREE(key);

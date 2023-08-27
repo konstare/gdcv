@@ -24,7 +24,8 @@ static const char EMPTY_STR[] = "";
     };                                                                         \
   } while (0)
 
-void *xcalloc(size_t n, size_t s);
+/* Allocate NMEMB elements of SIZE bytes each, all initialized to 0.  */
+void *xcalloc(size_t nmemb, size_t size);
 void *xrealloc(void *ptr, size_t size);
 void *xmalloc(size_t size);
 char *xstrdup(const char *s1);

@@ -1,3 +1,4 @@
+#pragma once
 #include "dictionaries.h"
 
 typedef struct {
